@@ -45,6 +45,9 @@ Installation on Ubuntu:
 Installation on Fedora:
 > yum install freeglut freeglut-devel
 
+Installation on Mac OS X which has MacPorts installed:
+> sudo port install freeglut
+
 
 COMPILATION / INSTALLATION
 ================================================================================

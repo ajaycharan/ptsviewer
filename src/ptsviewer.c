@@ -861,6 +861,7 @@ uint8_t determineFileFormat( char * filename ) {
 			char magic_number[5] = { 0 };
 			fread( magic_number, 1, 4, f );
 			if ( !strcmp( magic_number, "ply\n" ) ) {
+                                fclose(f);
 				return FILE_FORMAT_PLY;
 			}
 			fclose( f );

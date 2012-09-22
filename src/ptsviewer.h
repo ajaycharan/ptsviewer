@@ -29,6 +29,7 @@
 #define FILE_FORMAT_NONE 0
 #define FILE_FORMAT_UOS  1
 #define FILE_FORMAT_PLY  2
+#define FILE_FORMAT_TXT  3
 
 /* Functions */
 void loadPts( char * ptsfile, size_t idx );
@@ -64,8 +65,11 @@ typedef struct {
 	int           selected;
 	char *        name;
 	boundingbox_t boundingbox;
+        double*       mat;
+        double*       invmat;
 } cloud_t;
 
+float hack_mat[] = {1,0,0,0,0,1,0,0,0,0,-1,0,0,0,0,1};
 
 
 /* Global variables */
@@ -79,7 +83,7 @@ int       g_invertrotx      =                 -1;
 int       g_invertroty      =                 -1;
 float     g_zoom            =                  1;
 int       g_color           =                  1;
-float     g_pointsize       =               1.0f;
+float     g_pointsize       =               2.0f;
 cloud_t * g_clouds          =               NULL;
 uint32_t  g_cloudcount      =                  0;
 float     g_maxdim          =                  0;
@@ -88,6 +92,8 @@ int       g_showcoord       =                  0;
 char      g_selection[1024] =                 "";
 float     g_movespeed       =                  1;
 int       g_left            =                -75;
+
+int current_ply_index = -1;
 
 boundingbox_t g_bb = { 
 	{ DBL_MAX, DBL_MAX, DBL_MAX }, 
@@ -100,3 +106,5 @@ boundingbox_t g_bb = {
 #define VIEWER_MODE_MOVESEL 2
 
 int       g_mode            = VIEWER_MODE_NORMAL;
+
+void update_movie_index(int value);

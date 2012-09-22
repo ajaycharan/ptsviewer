@@ -10,6 +10,9 @@
  *         Author:  Lars Kiesow (lkiesow), lkiesow@uos.de
  *        Company:  Universität Osnabrück
  *
+ *     Extensions:  Tomasz Malisiewicz (quantombone), tomasz@csail.mit.edu
+ *    Affiliation:  MIT
+ *
  ******************************************************************************/
 
 #include "ptsviewer.h"
@@ -377,10 +380,15 @@ void drawScene() {
 	/* Set point size */
 	glPointSize( g_pointsize );
 
+
+
 	int i;
 	for ( i = 0; i < g_cloudcount; i++ ) {
 		if ( g_clouds[i].enabled ) {
 			glLoadIdentity();
+
+
+
 
 			/* Enable colorArray. */
 			if ( g_clouds[i].colors ) {
@@ -396,24 +404,43 @@ void drawScene() {
 				}
 			}
 
+                        
+
 			/* Apply scale, rotation and translation. */
 			/* Global (all points) */
+                        //glScalef(1.,1.,-1);
+
+
+
+                        if (1) {
 			glScalef( g_zoom, g_zoom, 1 );
+
 			glTranslatef( g_translate.x, g_translate.y, g_translate.z );
+                        //fprintf(stdout,"x y z is %.4f %.4f %.4f\n",g_translate.x,g_translate.y,g_translate.z);
+
 
 			glRotatef( (int) g_rot.x, 1, 0, 0 );
 			glRotatef( (int) g_rot.y, 0, 1, 0 );
 			glRotatef( (int) g_rot.z, 0, 0, 1 );
+                        }
 
-			glTranslatef( -g_trans_center.x, -g_trans_center.y, -g_trans_center.z );
 
+
+                        //TJM: comment this out
+			//glTranslatef( -g_trans_center.x, -g_trans_center.y, -g_trans_center.z );
+                        
+                        //if (g_clouds[i].mat)
+                        //glLoadMatrixd(g_clouds[i].mat);
+
+
+                        
 			/* local (this cloud only) */
-			glTranslatef( g_clouds[i].trans.x, g_clouds[i].trans.y,
-					g_clouds[i].trans.z );
+			/* glTranslatef( g_clouds[i].trans.x, g_clouds[i].trans.y, */
+			/* 		g_clouds[i].trans.z ); */
 
-			glRotatef( (int) g_clouds[i].rot.x, 1, 0, 0 );
-			glRotatef( (int) g_clouds[i].rot.y, 0, 1, 0 );
-			glRotatef( (int) g_clouds[i].rot.z, 0, 0, 1 );
+			/* glRotatef( (int) g_clouds[i].rot.x, 1, 0, 0 ); */
+			/* glRotatef( (int) g_clouds[i].rot.y, 0, 1, 0 ); */
+			/* glRotatef( (int) g_clouds[i].rot.z, 0, 0, 1 ); */
 
 			/* Set vertex and color pointer. */
 			glVertexPointer( 3, GL_FLOAT, 0, g_clouds[i].vertices );
@@ -421,6 +448,23 @@ void drawScene() {
 				glColorPointer(  3, GL_UNSIGNED_BYTE, 0, g_clouds[i].colors );
 			}
 		
+                        /* int qqq; */
+                        /* fprintf(stdout,"\n"); */
+                        /* for (qqq = 0; qqq < 16; ++qqq) */
+                        /*   fprintf(stdout, "[i]=%d element %d is %.3f\n",i,qqq,g_clouds[i].mat[qqq]); */
+
+
+                        glMultMatrixf(hack_mat);
+                        glMultMatrixd(g_clouds[current_ply_index].invmat);
+                        glMultMatrixf(hack_mat);
+
+
+                        
+                        glMultMatrixf(hack_mat);
+                        glMultMatrixd(g_clouds[i].mat);
+                        glMultMatrixf(hack_mat);
+
+                        
 			/* Draw point cloud */
 			glDrawArrays( GL_POINTS, 0, g_clouds[i].pointcount );
 
@@ -439,7 +483,7 @@ void drawScene() {
 
 	/* Print status of clouds at the top of the window. */
 	glLoadIdentity();
-	glTranslatef( 0, 0, -100 );
+	//glTranslatef( 0, 0, -100 );
 
 	char buf[64];
 	int xpos = g_left;
@@ -775,17 +819,52 @@ void keyPressed( unsigned char key, int x, int y ) {
  *  Description:  Handle resize of window.
  ******************************************************************************/
 void resizeScene( int w, int h ) {
-
+  fprintf(stdout,"Resize scene called w=%d d=%d\n",w,h);
 	glViewport( 0, 0, w, h );
 	glMatrixMode( GL_PROJECTION );
 	glLoadIdentity();
-	gluPerspective( 60, w / (float) h, 0, 200 );
+
+
+        // lots of good stuff (HZ matrix to openGl matrix): http://strawlab.org/2011/11/05/augmented-reality-with-OpenGL/
+        double width = 640;
+        double height = 480;
+        double zfar = 200;
+        double znear = .1;
+        double K00 = 533.0692;
+        double K11 = 533.0692;
+        double K02 = 320.0;
+        double K12 = 240.0;
+        double K01 = 0.0;
+        double x0 = 0;
+        double y0 = 0;
+
+        float m[16];
+        int i; 
+        for (i = 0; i < 16; ++i)
+          m[i] = 0;
+
+        m[0] = 2*K00/width;
+        m[4] = -2*K01/width;
+        m[5] = -2*K11/height;
+        m[8] = (width - 2*K02 + 2*x0)/width;
+        m[9] =  (height - 2*K12 + 2*y0)/height;
+        m[10] = (-zfar - znear)/(zfar - znear);
+        m[11] = -1;
+        m[14] = -2*zfar*znear/(zfar - znear);
+        
+        glLoadMatrixf(m);
+
+        
+	//gluPerspective( 45, w / (float) h, 0.1, 200 );
+
+        //the hud is broken, but who cares
 	g_left = (int) ( -tan( 0.39 * w / h ) * 100 ) - 13;
 
+        glMatrixMode( GL_MODELVIEW );
 
-   glMatrixMode( GL_MODELVIEW );
 	glEnable(     GL_DEPTH_TEST );
-	glDepthFunc(  GL_LEQUAL );
+	//glDepthFunc(  GL_LEQUAL );
+        glDepthFunc(GL_LESS);
 
 }
 
@@ -806,8 +885,8 @@ void init() {
 
 	glutInitDisplayMode( GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH );
 
-   glutInitWindowSize( 640, 480 );
-	g_window = glutCreateWindow( "ptsViewer" );
+        glutInitWindowSize( 640, 480 );
+	g_window = glutCreateWindow( "3D Reconstruction Viewer" );
 
 	glutDisplayFunc(  &drawScene );
 	glutReshapeFunc(  &resizeScene );
@@ -836,6 +915,9 @@ void cleanup() {
 		if ( g_clouds[i].colors ) {
 			free( g_clouds[i].colors );
 		}
+                if (g_clouds[i].mat) {
+                  free(g_clouds[i].mat);
+                }
 	}
 	if ( g_clouds ) {
 	}
@@ -855,6 +937,8 @@ uint8_t determineFileFormat( char * filename ) {
 	}
 	if ( !strcmp( ext, ".pts" ) || !strcmp( ext, ".3d" ) ) {
 		return FILE_FORMAT_UOS;
+        } else if ( !strcmp( ext, ".txt") ) {
+          return FILE_FORMAT_TXT;
 	} else if ( !strcmp( ext, ".ply" ) ) {
 		FILE * f = fopen( filename, "r" );
 		if ( f ) {
@@ -888,41 +972,139 @@ int main( int argc, char ** argv ) {
 		exit( EXIT_SUCCESS );
 	}
 
-	/* Prepare array */
-	g_clouds = (cloud_t *) malloc( (argc - 1) * sizeof( cloud_t ) );
-	if ( !g_clouds ) {
-		fprintf( stderr, "Could not allocate memory for point clouds!\n" );
-		exit( EXIT_FAILURE );
-	}
-	g_cloudcount = argc - 1;
+	
 
-	/* Load pts file */
-	int i;
-	for ( i = 0; i < g_cloudcount; i++ ) {
-		memset( g_clouds + i, 0, sizeof( cloud_t ) );
-		switch ( determineFileFormat( argv[ i + 1 ] ) ) {
-			case FILE_FORMAT_PLY:
-				loadPly( argv[ i + 1 ], i );
-				break;
-			case FILE_FORMAT_UOS:
-			default:
-				loadPts( argv[ i + 1 ], i );
-		}
-		g_clouds[i].name = argv[ i + 1 ];
-		g_clouds[i].enabled = 1;
-	}
+        /* If given a text file as one command line argument, then we read ply files.  This is a trick
+         to avoid command line argument lists which are too long to process */
+        if (argc==3 && determineFileFormat(argv[1])==FILE_FORMAT_TXT && determineFileFormat(argv[2])==FILE_FORMAT_TXT) {
+            FILE * f = fopen( argv[1], "r" );
+            if (!f) {
+              fprintf(stderr, "Cannot read %s\n",argv[1]);
+              exit(EXIT_FAILURE);
+            }
+            int numimages = -1;
+            fscanf(f, "%d", &numimages);
+            fprintf(stdout, " Num images is  %d\n",numimages);
 
+            g_cloudcount = numimages;
+            /* Prepare array */
+            g_clouds = (cloud_t *) malloc( g_cloudcount * sizeof( cloud_t ) );
+            if ( !g_clouds ) {
+              fprintf( stderr, "Could not allocate memory for point clouds!\n" );
+              exit( EXIT_FAILURE );
+            }
+
+            
+            int i;
+            for (i = 0; i < g_cloudcount; ++i) {
+              char ss[1000];
+              fscanf( f, "%s", ss);
+              fprintf(stdout, "Read %s\n", ss);
+              memset( g_clouds + i, 0, sizeof( cloud_t ) );
+              
+              loadPly(ss, i );
+              g_clouds[i].name = ss;
+              g_clouds[i].enabled = 1;
+              //if (i > 100)
+              //  g_clouds[i].enabled = 0;
+            }
+
+            fclose(f);
+
+            // now open the transformations file
+
+            f = fopen(argv[2],"r");
+
+            if (!f) {
+              fprintf(stderr, "Cannot read %s\n",argv[2]);
+              exit(EXIT_FAILURE);
+            }
+            int numimages2 = -1;
+            fscanf(f, "%d", &numimages2);
+            fprintf(stdout, " Num images2 is  %d\n",numimages2);
+            if (numimages != numimages2) {
+              fprintf(stderr, "numimages != numimages2\n");
+              exit( EXIT_FAILURE );
+            }
+
+
+            int mode = -1;
+            for (i = 0; i < g_cloudcount; ++i) {
+
+              double* mat;
+              mat = (double*)malloc(16*sizeof(double));
+              fscanf(f,"%i %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
+                     &mode,&mat[0],&mat[1],&mat[2],&mat[3],&mat[4],&mat[5],&mat[6],&mat[7],&mat[8],&mat[9],&mat[10],&mat[11],&mat[12],&mat[13],&mat[14],&mat[15]);
+              
+              g_clouds[i].mat = mat;
+
+              double* invmat;
+              invmat = (double*)malloc(16*sizeof(double));
+              fscanf(f,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
+                     &invmat[0],&invmat[1],&invmat[2],&invmat[3],&invmat[4],&invmat[5],&invmat[6],&invmat[7],&invmat[8],&invmat[9],&invmat[10],&invmat[11],&invmat[12],&invmat[13],&invmat[14],&invmat[15]);
+              
+              g_clouds[i].invmat = invmat;
+
+
+              g_clouds[i].enabled = mode;
+
+              if (current_ply_index == -1 && mode == 1)
+                current_ply_index = i;
+              
+            }
+
+            // note: it needs to be freed sometime?
+            //free(mat);
+
+            fclose(f);
+
+        }
+        else {
+        
+          g_cloudcount = argc - 1;
+          
+          /* Prepare array */
+          g_clouds = (cloud_t *) malloc( g_cloudcount * sizeof( cloud_t ) );
+          if ( !g_clouds ) {
+            fprintf( stderr, "Could not allocate memory for point clouds!\n" );
+            exit( EXIT_FAILURE );
+          }
+          
+          /* Load pts file */
+          int i;
+          for ( i = 0; i < g_cloudcount; i++ ) {
+            memset( g_clouds + i, 0, sizeof( cloud_t ) );
+            switch ( determineFileFormat( argv[ i + 1 ] ) ) {
+            case FILE_FORMAT_PLY:
+              loadPly( argv[ i + 1 ], i );
+              break;
+            case FILE_FORMAT_UOS:
+            default:
+              loadPts( argv[ i + 1 ], i );
+            }
+            g_clouds[i].name = argv[ i + 1 ];
+            g_clouds[i].enabled = 1;
+          }
+          
+        }
+        
 	/* Calculate translation to middle of cloud. */
 	g_trans_center.x = ( g_bb.max.x + g_bb.min.x ) / 2;
 	g_trans_center.y = ( g_bb.max.y + g_bb.min.y ) / 2;
 	g_trans_center.z = ( g_bb.max.z + g_bb.min.z ) / 2;
-	g_translate.z = -fabs( g_bb.max.z - g_bb.min.z );
+        //TJM: comment this out
+	//g_translate.z = -fabs( g_bb.max.z - g_bb.min.z );
 
 	/* Print usage information to stdout. */
 	printHelp();
 
+        int value = -1;
+        glutTimerFunc(1,update_movie_index,value);
+
 	/* Run program */
 	glutMainLoop();
+
+
 
 	cleanup();
 	return EXIT_SUCCESS;
@@ -987,4 +1169,38 @@ void printHelp() {
 			" m,<esc>     Leave move mode\n"
 			);
 
+}
+
+void update_movie_index(int value) {
+
+  // first find first index
+  int i;
+  int first_index = -1;
+  for (i = 0 ; i < g_cloudcount; ++i) {
+    if (first_index == -1 && g_clouds[i].enabled) {
+      first_index = i;
+      break;
+    }
+  } 
+
+  if (current_ply_index == g_cloudcount-1) {
+    current_ply_index = first_index;
+  } else {
+    
+    int next_index = -1;
+    for (i =  current_ply_index+1; i < g_cloudcount; ++i) {
+      if (next_index == -1 && g_clouds[i].enabled) {
+        next_index = i;
+        break;
+      }
+    }
+    if (next_index == -1)
+      current_ply_index = first_index;
+    else
+      current_ply_index = next_index;
+  }
+  
+  fprintf(stdout,"Update movie has ply index = %d\n", current_ply_index);
+  drawScene();
+  glutTimerFunc(1,update_movie_index,value);
 }

@@ -2,45 +2,31 @@
 
 include config.mk
 
-it: $(OBJDIR)/ptsviewer.rel.o $(OBJDIR)/rply.rel.o 
+it: $(OBJDIR)/ptsviewer.rel.o 
 	$(COMPILER) $(OBJDIR)/*.rel.o -o ptsviewer  $(RFLAGS)
 
-$(OBJDIR)/ptsviewer.o: $(SRCDIR)/ptsviewer.c $(SRCDIR)/ptsviewer.h
+$(OBJDIR)/ptsviewer.o: $(SRCDIR)/ptsviewer.cpp $(SRCDIR)/ptsviewer.h
 	@mkdir -p $(OBJDIR)
-	$(COMPILER) $(FLAGS) -c $(SRCDIR)/ptsviewer.c -o $(OBJDIR)/ptsviewer.o
-
-
-$(OBJDIR)/rply.o: $(SRCDIR)/rply/rply.c $(SRCDIR)/rply/rply.h
-	@mkdir -p $(OBJDIR)
-	$(COMPILER) $(FLAGS) -c $(SRCDIR)/rply/rply.c -o $(OBJDIR)/rply.o
-
-
+	$(COMPILER) $(FLAGS) -c $(SRCDIR)/ptsviewer.cpp -o $(OBJDIR)/ptsviewer.o
 
 # DEBUG
-debug: $(OBJDIR)/ptsviewer.dbg.o $(OBJDIR)/rply.dbg.o
+debug: $(OBJDIR)/ptsviewer.dbg.o
 	$(COMPILER) $(OBJDIR)/*.dbg.o -o ptsviewer  $(DFLAGS)
 
-$(OBJDIR)/ptsviewer.dbg.o: $(SRCDIR)/ptsviewer.c $(SRCDIR)/ptsviewer.h
+$(OBJDIR)/ptsviewer.dbg.o: $(SRCDIR)/ptsviewer.cpp $(SRCDIR)/ptsviewer.h
 	@mkdir -p $(OBJDIR)
-	$(COMPILER) $(DFLAGS) -c $(SRCDIR)/ptsviewer.c -o $(OBJDIR)/ptsviewer.dbg.o
+	$(COMPILER) $(DFLAGS) -c $(SRCDIR)/ptsviewer.cpp -o $(OBJDIR)/ptsviewer.dbg.o
 
-$(OBJDIR)/rply.dbg.o: $(SRCDIR)/rply/rply.c $(SRCDIR)/rply/rply.h
-	@mkdir -p $(OBJDIR)
-	$(COMPILER) $(DFLAGS) -c $(SRCDIR)/rply/rply.c -o $(OBJDIR)/rply.dbg.o
 
 
 # RELEASE
-release: $(OBJDIR)/ptsviewer.rel.o $(OBJDIR)/rply.rel.o
+release: $(OBJDIR)/ptsviewer.rel.o 
 	$(COMPILER) $(OBJDIR)/*.rel.o -o ptsviewer  $(RFLAGS)
 
 
-$(OBJDIR)/ptsviewer.rel.o: $(SRCDIR)/ptsviewer.c $(SRCDIR)/ptsviewer.h
+$(OBJDIR)/ptsviewer.rel.o: $(SRCDIR)/ptsviewer.cpp $(SRCDIR)/ptsviewer.h
 	@mkdir -p $(OBJDIR)
-	$(COMPILER) $(RFLAGS) -c $(SRCDIR)/ptsviewer.c -o $(OBJDIR)/ptsviewer.rel.o
-
-$(OBJDIR)/rply.rel.o: $(SRCDIR)/rply/rply.c $(SRCDIR)/rply/rply.h
-	@mkdir -p $(OBJDIR)
-	$(COMPILER) $(RFLAGS) -c $(SRCDIR)/rply/rply.c -o $(OBJDIR)/rply.rel.o
+	$(COMPILER) $(RFLAGS) -c $(SRCDIR)/ptsviewer.cpp -o $(OBJDIR)/ptsviewer.rel.o
 
 
 test: it

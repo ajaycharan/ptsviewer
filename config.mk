@@ -16,7 +16,7 @@ GLUTLIB=-lglut
 MLIB   =-lm
 
 # includes and libs
-INCS=-I. -I/usr/X11/include/ ${GLINC} ${GLUINC} ${GLUTINC}
+INCS=-I. -I/usr/X11/include/ ${GLINC} ${GLUINC} ${GLUTINC} -I /opt/local/include/eigen3
 LIBS=-L/usr/lib ${GLLIB} ${GLULIB} ${GLUTLIB} ${MLIB}
 
 # dirs for source and object files
@@ -24,7 +24,7 @@ OBJDIR   = obj
 SRCDIR   = src
 
 # compiler and additional flags
-COMPILER = gcc
+COMPILER = g++
 FLAGS    = -Wall -DVERSION=\"${VERSION}\" ${INCS} ${LIBS}
 RFLAGS   = ${FLAGS} -O3
 DFLAGS   = ${FLAGS} -g

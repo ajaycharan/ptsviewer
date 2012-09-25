@@ -16,9 +16,13 @@
  ******************************************************************************/
 
 #include "ptsviewer.h"
+#include <Eigen/Dense>
+#include <string>
 
 #define min(A,B) ((A)<(B) ? (A) : (B)) 
 #define max(A,B) ((A)>(B) ? (A) : (B)) 
+
+int dump_ply(char* filename);
 
 /*******************************************************************************
  *         Name:  mouseMoved
@@ -660,23 +664,22 @@ uint8_t determineFileFormat( char * filename ) {
  *  Description:  Main function
  ******************************************************************************/
 int main( int argc, char ** argv ) {
-  
-  /* Initialize GLUT */
-  glutInit( &argc, argv );
-  init();
-  
+
   /* Check if we have enough parameters */
   if ( argc < 3 ) {
-    printf( "Usage: %s allpoints.bin out.reconstruction MOVIEFLAG \"0 r 1\"\n", *argv );
+    printf( "Usage: %s allpoints.bin out.reconstruction MOVIEFLAG \"0 r 1\"\n", argv[0] );
     exit( EXIT_SUCCESS );
   }
 
   int movieflag = 0;
+  char* ply_file = 0;
   if (argc==4 && atoi(argv[3])==1) {
     movieflag = 1;
     fprintf(stdout,"Enabled movie\n");
-  } else {
-    fprintf(stdout,"Movie diabled\n");
+  } else if (argc==4){
+    ply_file = argv[3];
+    std::cout<<"got here\n"<<std::flush<<std::endl;
+    fprintf(stdout,"Movie diabled, but writing to %s\n",ply_file);
   }
   
   /* First we read all points */
@@ -707,8 +710,8 @@ int main( int argc, char ** argv ) {
 
   fprintf(stdout,"Maxid is %d\n",maxid);
 
-  int* counts = malloc(sizeof(int)*maxid);
-  int* startid = malloc(sizeof(int)*maxid);
+  int* counts = (int*)malloc(sizeof(int)*maxid);
+  int* startid = (int*)malloc(sizeof(int)*maxid);
   memset(counts,0,sizeof(int)*maxid);
   memset(startid,0,sizeof(int)*maxid);
   for (i = 0; i < num_points; ++i)
@@ -823,9 +826,22 @@ int main( int argc, char ** argv ) {
   //g_trans_center.z = ( g_bb.max.z + g_bb.min.z ) / 2;
   //TJM: comment this out
   //g_translate.z = -fabs( g_bb.max.z - g_bb.min.z );
+
+
+  //here we dump the ply file
+  //char* plyfile = "/Users/tomasz/Desktop/tmp.ply";
+  dump_ply(ply_file);
+  
+  if (ply_file != 0)
+    exit(1);
   
   /* Print usage information to stdout. */
   printHelp();
+
+  /* Initialize GLUT */
+  glutInit( &argc, argv );
+  init();
+
   
   if (movieflag == 1) {
     int value = -1;
@@ -932,4 +948,49 @@ void update_movie_index(int value) {
   fprintf(stdout,"Update movie has ply index = %d\n", current_ply_index);
   drawScene();
   glutTimerFunc(1,update_movie_index,value);
+}
+
+int dump_ply(char* filename) {
+  if (filename == 0)
+    return -1;
+  std::cout<<"Dumping ply file to " << std::string(filename)<<std::endl;
+  FILE* f = fopen(filename,"w");
+  if (!f) {
+    fprintf(stderr, "Cannot read %s\n",filename);
+    return -1;
+  } 
+  
+  int count = 0;
+  for (int i = 0; i < g_cloudcount; ++i)
+    if (g_clouds[i].enabled)
+      count+=g_clouds[i].pointcount;
+  
+  fprintf (f, "ply\n");
+  fprintf (f, "format binary_little_endian 1.0\n");
+  fprintf (f, "element vertex %d\n", count);
+  fprintf (f, "property float x\n");
+  fprintf (f, "property float y\n");
+  fprintf (f, "property float z\n");
+  fprintf (f, "property uchar red\n");
+  fprintf (f, "property uchar green\n");
+  fprintf (f, "property uchar blue\n");
+  fprintf (f, "end_header\n");
+  for (int i = 0; i < g_cloudcount; ++i) {
+    if (!g_clouds[i].enabled)
+      continue;
+    Eigen::Matrix4f T;
+    for (int q = 0; q < 16; ++q)
+      T(q) = (g_clouds[i].mat[q]);
+    for (int j = 0; j < g_clouds[i].pointcount; ++j) {
+      Eigen::Vector4f x;
+      x(3) = 1;
+      for (int q = 0; q < 3; ++q)
+        x(q) = g_clouds[i].vertices[3*j+q];
+      x = T*x;    
+      fwrite((void*)(&x),sizeof(float),3,f);
+      fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
+    }
+  }
+  fclose(f);
+  return 1;
 }

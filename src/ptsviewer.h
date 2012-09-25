@@ -32,7 +32,7 @@
 #define FILE_FORMAT_TXT  3
 
 /* Functions */
-void loadPts( char * ptsfile, size_t idx );
+
 void mouseMoved( int x, int y );
 void mousePress( int button, int state, int x, int y );
 void drawScene();
@@ -69,7 +69,7 @@ typedef struct {
         double*       invmat;
 } cloud_t;
 
-float hack_mat[] = {1,0,0,0,0,1,0,0,0,0,-1,0,0,0,0,1};
+//float hack_mat[] = {1,0,0,0,0,1,0,0,0,0,-1,0,0,0,0,1};
 
 
 /* Global variables */
@@ -86,7 +86,7 @@ int       g_color           =                  1;
 float     g_pointsize       =               2.0f;
 cloud_t * g_clouds          =               NULL;
 uint32_t  g_cloudcount      =                  0;
-float     g_maxdim          =                  0;
+float     g_maxdim          =                  10;
 coord3d_t g_trans_center    =  { 0.0, 0.0, 0.0 };
 int       g_showcoord       =                  0;
 char      g_selection[1024] =                 "";

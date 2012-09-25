@@ -2,16 +2,18 @@
 
 include config.mk
 
-it: $(OBJDIR)/ptsviewer.o $(OBJDIR)/rply.o
-	$(COMPILER) $(OBJDIR)/*.o -o ptsviewer  $(FLAGS)
+it: $(OBJDIR)/ptsviewer.rel.o $(OBJDIR)/rply.rel.o 
+	$(COMPILER) $(OBJDIR)/*.rel.o -o ptsviewer  $(RFLAGS)
 
 $(OBJDIR)/ptsviewer.o: $(SRCDIR)/ptsviewer.c $(SRCDIR)/ptsviewer.h
 	@mkdir -p $(OBJDIR)
 	$(COMPILER) $(FLAGS) -c $(SRCDIR)/ptsviewer.c -o $(OBJDIR)/ptsviewer.o
 
+
 $(OBJDIR)/rply.o: $(SRCDIR)/rply/rply.c $(SRCDIR)/rply/rply.h
 	@mkdir -p $(OBJDIR)
 	$(COMPILER) $(FLAGS) -c $(SRCDIR)/rply/rply.c -o $(OBJDIR)/rply.o
+
 
 
 # DEBUG
@@ -30,6 +32,7 @@ $(OBJDIR)/rply.dbg.o: $(SRCDIR)/rply/rply.c $(SRCDIR)/rply/rply.h
 # RELEASE
 release: $(OBJDIR)/ptsviewer.rel.o $(OBJDIR)/rply.rel.o
 	$(COMPILER) $(OBJDIR)/*.rel.o -o ptsviewer  $(RFLAGS)
+
 
 $(OBJDIR)/ptsviewer.rel.o: $(SRCDIR)/ptsviewer.c $(SRCDIR)/ptsviewer.h
 	@mkdir -p $(OBJDIR)

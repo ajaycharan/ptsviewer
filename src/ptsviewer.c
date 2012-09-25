@@ -17,297 +17,8 @@
 
 #include "ptsviewer.h"
 
-
 #define min(A,B) ((A)<(B) ? (A) : (B)) 
 #define max(A,B) ((A)>(B) ? (A) : (B)) 
-
-
-/*******************************************************************************
- *         Name:  ply_vertex_cb
- *  Description:  
- ******************************************************************************/
-int plyVertexCb( p_ply_argument argument ) {
-
-	struct { float* v; boundingbox_t* b; } * d;
-	long int eol;
-	ply_get_argument_user_data( argument, (void *) &d, &eol );
-	if ( eol == 0 ) {
-		*(d->v) = ply_get_argument_value( argument );
-		if ( *(d->v) > d->b->max.x ) { d->b->max.x = *(d->v); }
-		if ( *(d->v) < d->b->min.x ) { d->b->min.x = *(d->v); }
-	} else if ( eol == 1 ) {
-		*(d->v) = ply_get_argument_value( argument );
-		if ( *(d->v) > d->b->max.y ) { d->b->max.y = *(d->v); }
-		if ( *(d->v) < d->b->min.y ) { d->b->min.y = *(d->v); }
-	} else if ( eol == 2 ) {
-		*(d->v) = -ply_get_argument_value( argument );
-		if ( *(d->v) > d->b->max.z ) { d->b->max.z = *(d->v); }
-		if ( *(d->v) < d->b->min.z ) { d->b->min.z = *(d->v); }
-	}
-	d->v++;
-	return 1;
-
-}
-
-
-/*******************************************************************************
- *         Name:  ply_color_cb
- *  Description:  
- ******************************************************************************/
-int plyColorCb( p_ply_argument argument ) {
-
-	uint8_t ** color;
-	ply_get_argument_user_data( argument, (void *) &color, NULL );
-	**color = (unsigned int) ply_get_argument_value( argument );
-	(*color)++;
-	return 1;
-
-}
-
-
-/*******************************************************************************
- *         Name:  loadPly
- *  Description:  Load a ply file into memory.
- ******************************************************************************/
-void loadPly( char * filename, size_t idx ) {
-
-	printf( "Loading »%s«…\n", filename );
-
-	p_ply ply = ply_open( filename, NULL, 0, NULL );
-
-	if ( !ply ) {
-		fprintf( stderr, "error: Could not open »%s«.\n", filename );
-		exit( EXIT_FAILURE );
-	}
-	if ( !ply_read_header( ply ) ) {
-		fprintf( stderr, "error: Could not read header.\n" );
-		exit( EXIT_FAILURE );
-	}
-
-	/* Check if there are vertices and get the amount of vertices. */
-	char buf[256] = "";
-	char elemname[256] = "point";
-	const char * name = buf;
-	long int nvertices = 0;
-	long int count = 0;
-	p_ply_element elem = NULL;
-	while ( ( elem = ply_get_next_element( ply, elem ) ) ) {
-		ply_get_element_info( elem, &name, &count );
-		if ( !strcmp( name, "vertex" ) ) {
-			nvertices = count;
-			strcpy( elemname, "vertex" );
-			p_ply_property prop = NULL;
-			if ( g_clouds[ idx ].colors ) {
-				free( g_clouds[ idx ].colors );
-			}
-			while ( ( prop = ply_get_next_property( elem, prop ) ) ) {
-				ply_get_property_info( prop, &name, NULL, NULL, NULL );
-				if ( !strcmp( name, "red" ) ) {
-					/* We have color information */
-					g_clouds[ idx ].colors = ( uint8_t * ) 
-						realloc( g_clouds[ idx ].colors, nvertices * 3 * sizeof(uint8_t) );
-				}
-			}
-		} else if ( !strcmp( name, "point" ) ) {
-			nvertices = count;
-			strcpy( elemname, "point" );
-			p_ply_property prop = NULL;
-			if ( g_clouds[ idx ].colors ) {
-				free( g_clouds[ idx ].colors );
-			}
-			while ( ( prop = ply_get_next_property( elem, prop ) ) ) {
-				ply_get_property_info( prop, &name, NULL, NULL, NULL );
-				if ( !strcmp( name, "red" ) ) {
-					/* We have color information */
-					g_clouds[ idx ].colors = ( uint8_t * ) 
-						realloc( g_clouds[ idx ].colors, nvertices * 3 * sizeof(uint8_t) );
-				}
-			}
-			/* Point is more important than vertex. Thus we can stop immediately if
-			 * we got this element. */
-			break;
-		}
-	}
-	if ( !nvertices ) {
-		fprintf( stderr, "warning: No vertices in ply.\n" );
-		return;
-	}
-
-	/* Allocate memory. */
-	g_clouds[ idx ].pointcount = nvertices;
-	nvertices++;
-	g_clouds[ idx ].vertices = (float*) malloc( nvertices * 3 * sizeof(float) );
-	
-	uint8_t* color  = g_clouds[ idx ].colors;
-	g_clouds[ idx ].boundingbox.min.x = DBL_MAX;
-	g_clouds[ idx ].boundingbox.min.y = DBL_MAX;
-	g_clouds[ idx ].boundingbox.min.z = DBL_MAX;
-	g_clouds[ idx ].boundingbox.max.x = DBL_MIN;
-	g_clouds[ idx ].boundingbox.max.y = DBL_MIN;
-	g_clouds[ idx ].boundingbox.max.z = DBL_MIN;
-	struct { float* v; boundingbox_t* b; } d = { 
-		g_clouds[ idx ].vertices, &g_clouds[ idx ].boundingbox };
-
-	/* Set callbacks. */
-	nvertices = ply_set_read_cb( ply, elemname, "x", plyVertexCb, &d, 0 );
-	            ply_set_read_cb( ply, elemname, "y", plyVertexCb, &d, 1 );
-	            ply_set_read_cb( ply, elemname, "z", plyVertexCb, &d, 2 );
-
-	if ( color ) {
-		ply_set_read_cb( ply, elemname, "red",   plyColorCb, &color, 0 );
-		ply_set_read_cb( ply, elemname, "green", plyColorCb, &color, 1 );
-		ply_set_read_cb( ply, elemname, "blue",  plyColorCb, &color, 2 );
-	}
-
-	/* Read ply file. */
-	if ( !ply_read( ply ) ) {
-		fprintf( stderr, "error: could not read »%s«.\n", filename );
-		exit( EXIT_FAILURE );
-	}
-	ply_close( ply );
-
-	printf( "%ld values read.\nPoint cloud loaded.", nvertices );
-
-	g_maxdim = max( max( max( g_maxdim, d.b->max.x - d.b->min.x ), 
-				d.b->max.y - d.b->min.y ), d.b->max.z - d.b->min.z ); 
-	g_bb.max.x = max( g_bb.max.x, d.b->max.x );
-	g_bb.max.y = max( g_bb.max.y, d.b->max.y );
-	g_bb.max.z = max( g_bb.max.z, d.b->max.z );
-	g_bb.min.x = min( g_bb.min.x, d.b->min.x );
-	g_bb.min.y = min( g_bb.min.y, d.b->min.y );
-	g_bb.min.z = min( g_bb.min.z, d.b->min.z );
-
-}
-
-
-/*******************************************************************************
- *         Name:  countValuesPerLine
- *  Description:  Count the values in the current line of the given file.
- ******************************************************************************/
-int countValuesPerLine( FILE * f ) {
-
-	char line[1024];
-	fgets( line, 1023, f );
-	int valcount = 0;
-	char * pch = strtok( line, "\t " );
-	while ( pch ) {
-		if ( strcmp( pch, "" ) && strcmp( pch, "\n" ) ) {
-			valcount++;
-		}
-		pch = strtok( NULL, "\t " );
-	}
-	return valcount;
-
-}
-
-
-/*******************************************************************************
- *         Name:  load_pts
- *  Description:  Load a pts file into memory.
- ******************************************************************************/
-void loadPts( char * ptsfile, size_t idx ) {
-
-	printf( "Loading »%s«…\n", ptsfile );
-
-	/* Open file */
-	FILE * f = fopen( ptsfile, "r" );
-	if ( !f ) {
-		fprintf( stderr, "error: Could not open »%s«.\n", ptsfile );
-		exit( EXIT_FAILURE );
-	}
-
-	/* Determine amount of values per line */
-	int valcount_first_line = countValuesPerLine( f );
-	int valcount = countValuesPerLine( f );
-
-	/* Do we have color information in the pts file? */
-	int read_color = valcount >= 6;
-	/* Are there additional columns we dont want to have? */
-	int dummy_count = valcount - ( read_color ? 6 : 3 );
-	float dummy;
-
-	g_clouds[ idx ].vertices = ( float * ) malloc( 3000000 * sizeof(float) );
-
-	float * vert_pos = g_clouds[ idx ].vertices;
-	if ( read_color ) {
-		g_clouds[ idx ].colors = realloc( g_clouds[ idx ].colors, 3000000 * sizeof(uint8_t) );
-	}
-	uint8_t * color_pos = g_clouds[ idx ].colors;
-	int i;
-
-	/* Start from the beginning */
-	fseek( f, 0, SEEK_SET );
-
-	/* If amount of values in first line is different of the second line jump
-	 * over the first line. */
-	/* Also if the line starts with # jump over it */
-	if ( ( valcount != valcount_first_line ) || ( fgetc( f ) == '#' ) ) {
-		char line[1024];
-		fgets( line, 1023, f );
-	} else {
-		fseek( f, 0, SEEK_SET );
-	}
-
-	boundingbox_t bb = { 
-		{ DBL_MAX, DBL_MAX, DBL_MAX }, 
-		{ DBL_MIN, DBL_MIN, DBL_MIN } };
-	while ( !feof( f ) ) {
-		fscanf( f, "%f %f %f", vert_pos, vert_pos+1, vert_pos+2 );
-		vert_pos[2] *= -1; /* z */
-		if ( vert_pos[0] > bb.max.x ) { bb.max.x = vert_pos[0]; }
-		if ( vert_pos[1] > bb.max.y ) { bb.max.y = vert_pos[1]; }
-		if ( vert_pos[2] > bb.max.z ) { bb.max.z = vert_pos[2]; }
-		if ( vert_pos[0] < bb.min.x ) { bb.min.x = vert_pos[0]; }
-		if ( vert_pos[1] < bb.min.y ) { bb.min.y = vert_pos[1]; }
-		if ( vert_pos[2] < bb.min.z ) { bb.min.z = vert_pos[2]; }
-		vert_pos += 3;
-		for ( i = 0; i < dummy_count; i++ ) {
-			fscanf( f, "%f", &dummy );
-		}
-		if ( read_color ) {
-			unsigned int r, g, b;
-			fscanf( f, "%u %u %u", &r, &g, &b );
-			*(color_pos++) = r;
-			*(color_pos++) = g;
-			*(color_pos++) = b;
-		}
-		g_clouds[ idx ].pointcount++;
-		if ( g_clouds[ idx ].pointcount % 100000 == 0 ) {
-			printf( "  %u values read.\r", g_clouds[ idx ].pointcount );
-			fflush( stdout );
-		}
-		if ( g_clouds[ idx ].pointcount % 1000000 == 0 ) {
-			/* Resize array (double the size). */
-			g_clouds[ idx ].vertices = realloc( g_clouds[ idx ].vertices, 
-					g_clouds[ idx ].pointcount * 6 * sizeof(float) );
-			vert_pos = g_clouds[ idx ].vertices + 3 * g_clouds[ idx ].pointcount;
-			if ( g_clouds[ idx ].colors ) {
-				g_clouds[ idx ].colors = realloc( g_clouds[ idx ].colors, 
-						g_clouds[ idx ].pointcount * 6 * sizeof(uint8_t) );
-				color_pos = g_clouds[ idx ].colors + 3 * g_clouds[ idx ].pointcount;
-			}
-		}
-	}
-	g_clouds[ idx ].pointcount--;
-	g_clouds[ idx ].boundingbox = bb;
-	printf( "  %u values read.\nPoint cloud loaded.\n", 
-			g_clouds[ idx ].pointcount );
-
-	if ( f ) {
-		fclose( f );
-	}
-
-	g_maxdim = max( max( max( g_maxdim, bb.max.x - bb.min.x ), 
-				bb.max.y - bb.min.y ), bb.max.z - bb.min.z ); 
-	g_bb.max.x = max( g_bb.max.x, bb.max.x );
-	g_bb.max.y = max( g_bb.max.y, bb.max.y );
-	g_bb.max.z = max( g_bb.max.z, bb.max.z );
-	g_bb.min.x = min( g_bb.min.x, bb.min.x );
-	g_bb.min.y = min( g_bb.min.y, bb.min.y );
-	g_bb.min.z = min( g_bb.min.z, bb.min.z );
-
-}
-
 
 /*******************************************************************************
  *         Name:  mouseMoved
@@ -373,198 +84,188 @@ void mousePress( int button, int state, int x, int y ) {
  ******************************************************************************/
 void drawScene() {
 
-//	glColor4f(1.0, 1.0, 1.0, 1.0);
-	glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+  glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
+  
+  glEnableClientState( GL_VERTEX_ARRAY );
+  /* Set point size */
+  glPointSize( g_pointsize );
+    
+  int i;
+  for ( i = 0; i < g_cloudcount; i++ ) {
+    if ( g_clouds[i].enabled ) {
+      glLoadIdentity();
+      
+      /* Enable colorArray. */
+      if ( g_clouds[i].colors ) {
+        glEnableClientState( GL_COLOR_ARRAY );
+      } else {
+        /* Set cloudcolor to opposite of background color. */
+        float rgb[3];
+        glGetFloatv( GL_COLOR_CLEAR_VALUE, rgb );
+        if ( *rgb < 0.5 ) {
+          glColor3f( 1.0f, 1.0f, 1.0f );
+        } else {
+          glColor3f( 0.0f, 0.0f, 0.0f );
+        }
+      }
+      
+      
+         
 
-	glEnableClientState( GL_VERTEX_ARRAY );
-	/* Set point size */
-	glPointSize( g_pointsize );
+      glScalef( g_zoom, g_zoom, -1 );
+      
+      glTranslatef( g_translate.x, g_translate.y, g_translate.z );
+      //fprintf(stdout,"x y z is %.4f %.4f %.4f\n",g_translate.x,g_translate.y,g_translate.z);
+      
+      
+      glRotatef( (int) g_rot.x, 1, 0, 0 );
+      glRotatef( (int) g_rot.y, 0, 1, 0 );
+      glRotatef( (int) g_rot.z, 0, 0, 1 );
+      
+      
+      //TJM: comment this out
+      //glTranslatef( -g_trans_center.x, -g_trans_center.y, -g_trans_center.z );
+      
+      //if (g_clouds[i].mat)
+      //glLoadMatrixd(g_clouds[i].mat);
+      
+      
+      
+      /* local (this cloud only) */
+      /* glTranslatef( g_clouds[i].trans.x, g_clouds[i].trans.y, */
+      /* 		g_clouds[i].trans.z ); */
+      
+      /* glRotatef( (int) g_clouds[i].rot.x, 1, 0, 0 ); */
+      /* glRotatef( (int) g_clouds[i].rot.y, 0, 1, 0 ); */
+      /* glRotatef( (int) g_clouds[i].rot.z, 0, 0, 1 ); */
+      
+      /* Set vertex and color pointer. */
+      glVertexPointer( 3, GL_FLOAT, 0, g_clouds[i].vertices );
+      if ( g_clouds[i].colors ) {
+        glColorPointer(  3, GL_UNSIGNED_BYTE, 0, g_clouds[i].colors );
+      }
+      
+      /*int qqq; 
+        fprintf(stdout,"\n");
+        for (qqq = 0; qqq < 16; ++qqq)
+        fprintf(stdout, "[i]=%d element %d is %.3f\n",i,qqq,g_clouds[i].mat[qqq]);
+      */
+      
+      //fprintf(stdout,"cpy is %d\n",current_ply_index);
+      
+      /* fprintf(stdout,"Vert[%d] is %f %f %f\n",i,g_clouds[i].vertices[0],g_clouds[i].vertices[1],g_clouds[i].vertices[2]); */
+      
+      /* fprintf(stdout,"PC is %d\n",g_clouds[i].pointcount); */
+      /* int q; */
+      /* for (q = 0; q < 16; ++q) */
+      /*   fprintf(stdout,"Element[%d]=%.5f\n",i,g_clouds[i].mat[q]); */
+      
+      /* for (q = 0; q < 16; ++q) */
+      /*   fprintf(stdout,"Element INV [%d]=%.5f\n",i,g_clouds[i].invmat[q]); */
+      
+      
+      glMultMatrixd(g_clouds[current_ply_index].invmat);
+      glMultMatrixd(g_clouds[i].mat);
+      
+      
+      
+      /* Draw point cloud */
+      glDrawArrays( GL_POINTS, 0, g_clouds[i].pointcount );
+      
+      /* Disable colorArray. */
+      if ( g_clouds[i].colors ) {
+        glDisableClientState( GL_COLOR_ARRAY );
+      }
+    }
+  }
+  
+  /* Reset ClientState */
+  glDisableClientState( GL_VERTEX_ARRAY );
+  
+  /* /\* Print status of clouds at the top of the window. *\/ */
+  /* glLoadIdentity(); */
+  
 
-
-
-	int i;
-	for ( i = 0; i < g_cloudcount; i++ ) {
-		if ( g_clouds[i].enabled ) {
-			glLoadIdentity();
-
-
-
-
-			/* Enable colorArray. */
-			if ( g_clouds[i].colors ) {
-				glEnableClientState( GL_COLOR_ARRAY );
-			} else {
-				/* Set cloudcolor to opposite of background color. */
-				float rgb[3];
-				glGetFloatv( GL_COLOR_CLEAR_VALUE, rgb );
-				if ( *rgb < 0.5 ) {
-					glColor3f( 1.0f, 1.0f, 1.0f );
-				} else {
-					glColor3f( 0.0f, 0.0f, 0.0f );
-				}
-			}
-
-                        
-
-			/* Apply scale, rotation and translation. */
-			/* Global (all points) */
-                        //glScalef(1.,1.,-1);
-
-
-
-                        if (1) {
-			glScalef( g_zoom, g_zoom, 1 );
-
-			glTranslatef( g_translate.x, g_translate.y, g_translate.z );
-                        //fprintf(stdout,"x y z is %.4f %.4f %.4f\n",g_translate.x,g_translate.y,g_translate.z);
-
-
-			glRotatef( (int) g_rot.x, 1, 0, 0 );
-			glRotatef( (int) g_rot.y, 0, 1, 0 );
-			glRotatef( (int) g_rot.z, 0, 0, 1 );
-                        }
-
-
-
-                        //TJM: comment this out
-			//glTranslatef( -g_trans_center.x, -g_trans_center.y, -g_trans_center.z );
-                        
-                        //if (g_clouds[i].mat)
-                        //glLoadMatrixd(g_clouds[i].mat);
-
-
-                        
-			/* local (this cloud only) */
-			/* glTranslatef( g_clouds[i].trans.x, g_clouds[i].trans.y, */
-			/* 		g_clouds[i].trans.z ); */
-
-			/* glRotatef( (int) g_clouds[i].rot.x, 1, 0, 0 ); */
-			/* glRotatef( (int) g_clouds[i].rot.y, 0, 1, 0 ); */
-			/* glRotatef( (int) g_clouds[i].rot.z, 0, 0, 1 ); */
-
-			/* Set vertex and color pointer. */
-			glVertexPointer( 3, GL_FLOAT, 0, g_clouds[i].vertices );
-			if ( g_clouds[i].colors ) {
-				glColorPointer(  3, GL_UNSIGNED_BYTE, 0, g_clouds[i].colors );
-			}
-		
-                        /* int qqq; */
-                        /* fprintf(stdout,"\n"); */
-                        /* for (qqq = 0; qqq < 16; ++qqq) */
-                        /*   fprintf(stdout, "[i]=%d element %d is %.3f\n",i,qqq,g_clouds[i].mat[qqq]); */
-
-
-                        glMultMatrixf(hack_mat);
-                        glMultMatrixd(g_clouds[current_ply_index].invmat);
-                        glMultMatrixf(hack_mat);
-
-
-                        
-                        glMultMatrixf(hack_mat);
-                        glMultMatrixd(g_clouds[i].mat);
-                        glMultMatrixf(hack_mat);
-
-                        
-			/* Draw point cloud */
-			glDrawArrays( GL_POINTS, 0, g_clouds[i].pointcount );
-
-			/* Disable colorArray. */
-			if ( g_clouds[i].colors ) {
-				glDisableClientState( GL_COLOR_ARRAY );
-			}
-		}
-	}
-
-	/* Reset ClientState */
-	glDisableClientState( GL_VERTEX_ARRAY );
-
-
-
-
-	/* Print status of clouds at the top of the window. */
-	glLoadIdentity();
-	//glTranslatef( 0, 0, -100 );
-
-	char buf[64];
-	int xpos = g_left;
-	for ( i = 0; i < g_cloudcount; i++ ) {
-		if ( g_clouds[i].selected ) {
-			glColor3f( g_clouds[i].enabled ? 1.0 : 0.6, 0.0, 0.0 );
-		} else {
-			if ( g_clouds[i].enabled ) {
-				glColor3f( 1.0, 1.0, 1.0 );
-			} else {
-				glColor3f( 0.6, 0.6, 0.6 );
-			}
-		}
-		glRasterPos2i( xpos, 54 );
-		sprintf( buf, "%d", i );
-		int j;
-		for ( j = 0; j < strlen( buf ); j++ ) {
-			glutBitmapCharacter( GLUT_BITMAP_8_BY_13, buf[j] );
-			xpos += 2;
-		}
-		xpos += 2;
-	}
-
-	/* Print selection at the bottom of the window. */
-	if ( g_mode == VIEWER_MODE_SELECT ) {
-		glLoadIdentity();
-		glTranslatef( 0, 0, -100 );
-		glColor4f( 1.0, 1.0, 1.0, 0.0 );
-		glRasterPos2i( g_left, -54 );
-		strcpy( buf, "SELECT: " );
-		for ( i = 0; i < strlen( buf ); i++ ) {
-			glutBitmapCharacter( GLUT_BITMAP_8_BY_13, buf[i] );
-		}
-		for ( i = 0; i < strlen( g_selection ); i++ ) {
-			glutBitmapCharacter( GLUT_BITMAP_8_BY_13, g_selection[i] );
-		}
-	
-	}
-
-	/* Print mode sign at the bottom of the window. */
-	if ( g_mode == VIEWER_MODE_MOVESEL ) {
-		glLoadIdentity();
-		glTranslatef( 0, 0, -100 );
-		glColor4f( 1.0, 1.0, 1.0, 0.0 );
-		glRasterPos2i( g_left, -54 );
-		strcpy( buf, "MOVE (Press 'm' to leave this mode)" );
-		for ( i = 0; i < strlen( buf ); i++ ) {
-			glutBitmapCharacter( GLUT_BITMAP_8_BY_13, buf[i] );
-		}
-	}
-
-	/* Draw coordinate axis */
-	if ( g_showcoord ) {
-		glLoadIdentity();
-		glColor4f( 0.0, 1.0, 0.0, 0.0 );
-		glScalef( g_zoom, g_zoom, 1 );
-		glTranslatef( g_translate.x, g_translate.y, g_translate.z );
-		glRotatef( (int) g_rot.x, 1, 0, 0 );
-		glRotatef( (int) g_rot.y, 0, 1, 0 );
-		glRotatef( (int) g_rot.z, 0, 0, 1 );
-		glTranslatef( -g_trans_center.x, -g_trans_center.y, -g_trans_center.z );
-
-		glRasterPos3f( g_bb.max.x,       0.0f,     0.0f );
-		glutBitmapCharacter( GLUT_BITMAP_8_BY_13, 'X' );
-		glRasterPos3f(     0.0f,   g_bb.max.y,     0.0f );
-		glutBitmapCharacter( GLUT_BITMAP_8_BY_13, 'Y' );
-		glRasterPos3f(     0.0f,       0.0f, g_bb.min.z );
-		glutBitmapCharacter( GLUT_BITMAP_8_BY_13, 'Z' );
-
-		glBegin( GL_LINES );
-		glVertex3i(          0,          0,           0 );
-		glVertex3i( g_bb.max.x,          0,           0 );
-		glVertex3i(           0,          0,          0 );
-		glVertex3i(           0, g_bb.max.y,          0 );
-		glVertex3i(           0,          0,          0 );
-		glVertex3i(           0,          0, g_bb.min.z );
-		glEnd();
-	}
-
-	glutSwapBuffers();
-
+  /* char buf[64]; */
+  /* int xpos = g_left; */
+  /* for ( i = 0; i < g_cloudcount; i++ ) { */
+  /*   if ( g_clouds[i].selected ) { */
+  /*     glColor3f( g_clouds[i].enabled ? 1.0 : 0.6, 0.0, 0.0 ); */
+  /*   } else { */
+  /*     if ( g_clouds[i].enabled ) { */
+  /*       glColor3f( 1.0, 1.0, 1.0 ); */
+  /*     } else { */
+  /*       glColor3f( 0.6, 0.6, 0.6 ); */
+  /*     } */
+  /*   } */
+  /*   glRasterPos2i( xpos, 54 ); */
+  /*   sprintf( buf, "%d", i ); */
+  /*   int j; */
+  /*   for ( j = 0; j < strlen( buf ); j++ ) { */
+  /*     glutBitmapCharacter( GLUT_BITMAP_8_BY_13, buf[j] ); */
+  /*     xpos += 2; */
+  /*   } */
+  /*   xpos += 2; */
+  /* } */
+  
+  /* /\* Print selection at the bottom of the window. *\/ */
+  /* if ( g_mode == VIEWER_MODE_SELECT ) { */
+  /*   glLoadIdentity(); */
+  /*       	glTranslatef( 0, 0, -100 ); */
+  /*       	glColor4f( 1.0, 1.0, 1.0, 0.0 ); */
+  /*       	glRasterPos2i( g_left, -54 ); */
+  /*       	strcpy( buf, "SELECT: " ); */
+  /*       	for ( i = 0; i < strlen( buf ); i++ ) { */
+  /*                 glutBitmapCharacter( GLUT_BITMAP_8_BY_13, buf[i] ); */
+  /*       	} */
+  /*       	for ( i = 0; i < strlen( g_selection ); i++ ) { */
+  /*                 glutBitmapCharacter( GLUT_BITMAP_8_BY_13, g_selection[i] ); */
+  /*       	} */
+                
+  /* } */
+  
+  /* /\* Print mode sign at the bottom of the window. *\/ */
+  /* if ( g_mode == VIEWER_MODE_MOVESEL ) { */
+  /*   glLoadIdentity(); */
+  /*   glTranslatef( 0, 0, -100 ); */
+  /*   glColor4f( 1.0, 1.0, 1.0, 0.0 ); */
+  /*   glRasterPos2i( g_left, -54 ); */
+  /*   strcpy( buf, "MOVE (Press 'm' to leave this mode)" ); */
+  /*   for ( i = 0; i < strlen( buf ); i++ ) { */
+  /*     glutBitmapCharacter( GLUT_BITMAP_8_BY_13, buf[i] ); */
+  /*   } */
+  /* } */
+  
+  /* /\* Draw coordinate axis *\/ */
+  /* if ( g_showcoord ) { */
+  /*   glLoadIdentity(); */
+  /*   glColor4f( 0.0, 1.0, 0.0, 0.0 ); */
+  /*   glScalef( g_zoom, g_zoom, 1 ); */
+  /*   glTranslatef( g_translate.x, g_translate.y, g_translate.z ); */
+  /*   glRotatef( (int) g_rot.x, 1, 0, 0 ); */
+  /*   glRotatef( (int) g_rot.y, 0, 1, 0 ); */
+  /*   glRotatef( (int) g_rot.z, 0, 0, 1 ); */
+  /*   //glTranslatef( -g_trans_center.x, -g_trans_center.y, -g_trans_center.z ); */
+    
+  /*   glRasterPos3f( g_bb.max.x,       0.0f,     0.0f ); */
+  /*   glutBitmapCharacter( GLUT_BITMAP_8_BY_13, 'X' ); */
+  /*   glRasterPos3f(     0.0f,   g_bb.max.y,     0.0f ); */
+  /*   glutBitmapCharacter( GLUT_BITMAP_8_BY_13, 'Y' ); */
+  /*   glRasterPos3f(     0.0f,       0.0f, g_bb.min.z ); */
+  /*   glutBitmapCharacter( GLUT_BITMAP_8_BY_13, 'Z' ); */
+    
+  /*   glBegin( GL_LINES ); */
+  /*   glVertex3i(          0,          0,           0 ); */
+  /*   glVertex3i( g_bb.max.x,          0,           0 ); */
+  /*   glVertex3i(           0,          0,          0 ); */
+  /*   glVertex3i(           0, g_bb.max.y,          0 ); */
+  /*   glVertex3i(           0,          0,          0 ); */
+  /*   glVertex3i(           0,          0, g_bb.min.z ); */
+  /*   glEnd(); */
+  /* } */
+  glFlush();
+  glutSwapBuffers();
+  
 }
 
 
@@ -820,52 +521,50 @@ void keyPressed( unsigned char key, int x, int y ) {
  ******************************************************************************/
 void resizeScene( int w, int h ) {
   fprintf(stdout,"Resize scene called w=%d d=%d\n",w,h);
-	glViewport( 0, 0, w, h );
-	glMatrixMode( GL_PROJECTION );
-	glLoadIdentity();
-
-
-        // lots of good stuff (HZ matrix to openGl matrix): http://strawlab.org/2011/11/05/augmented-reality-with-OpenGL/
-        double width = 640;
-        double height = 480;
-        double zfar = 200;
-        double znear = .1;
-        double K00 = 533.0692;
-        double K11 = 533.0692;
-        double K02 = 320.0;
-        double K12 = 240.0;
-        double K01 = 0.0;
-        double x0 = 0;
-        double y0 = 0;
-
-        float m[16];
-        int i; 
-        for (i = 0; i < 16; ++i)
-          m[i] = 0;
-
-        m[0] = 2*K00/width;
-        m[4] = -2*K01/width;
-        m[5] = -2*K11/height;
-        m[8] = (width - 2*K02 + 2*x0)/width;
-        m[9] =  (height - 2*K12 + 2*y0)/height;
-        m[10] = (-zfar - znear)/(zfar - znear);
-        m[11] = -1;
-        m[14] = -2*zfar*znear/(zfar - znear);
+  glViewport( 0, 0, w, h );
+  glMatrixMode( GL_PROJECTION );
+  glLoadIdentity();
         
-        glLoadMatrixf(m);
-
-        
-	//gluPerspective( 45, w / (float) h, 0.1, 200 );
-
-        //the hud is broken, but who cares
-	g_left = (int) ( -tan( 0.39 * w / h ) * 100 ) - 13;
-
-        glMatrixMode( GL_MODELVIEW );
-
-	glEnable(     GL_DEPTH_TEST );
-	//glDepthFunc(  GL_LEQUAL );
-        glDepthFunc(GL_LESS);
-
+  if (1) {
+  // lots of good stuff (HZ matrix to openGl matrix): http://strawlab.org/2011/11/05/augmented-reality-with-OpenGL/
+  double width = 640;
+  double height = 480;
+  double zfar = 200;
+  double znear = .1;
+  double K00 = 533.0692;
+  double K11 = 533.0692;
+  double K02 = 320.0;
+  double K12 = 240.0;
+  double K01 = 0.0;
+  double x0 = 0;
+  double y0 = 0;
+  
+  float m[16];
+  int i; 
+  for (i = 0; i < 16; ++i)
+    m[i] = 0;
+  
+  m[0] = 2*K00/width;
+  m[4] = -2*K01/width;
+  m[5] = -2*K11/height;
+  m[8] = (width - 2*K02 + 2*x0)/width;
+  m[9] =  (height - 2*K12 + 2*y0)/height;
+  m[10] = (-zfar - znear)/(zfar - znear);
+  m[11] = -1;
+  m[14] = -2*zfar*znear/(zfar - znear);
+  
+  glLoadMatrixf(m);
+  } else {
+    gluPerspective( 45, w / (float) h, 0.1, 200 );
+  }
+  
+  //the hud is broken, but who cares
+  g_left = (int) ( -tan( 0.39 * w / h ) * 100 ) - 13;
+  
+  glMatrixMode( GL_MODELVIEW );
+  glEnable(     GL_DEPTH_TEST );
+  //glDepthFunc(  GL_LEQUAL );
+  glDepthFunc(GL_LESS);
 }
 
 
@@ -961,153 +660,183 @@ uint8_t determineFileFormat( char * filename ) {
  *  Description:  Main function
  ******************************************************************************/
 int main( int argc, char ** argv ) {
+  
+  /* Initialize GLUT */
+  glutInit( &argc, argv );
+  init();
+  
+  /* Check if we have enough parameters */
+  if ( argc < 3 ) {
+    printf( "Usage: %s allpoints.bin out.reconstruction MOVIEFLAG \"0 r 1\"\n", *argv );
+    exit( EXIT_SUCCESS );
+  }
 
-	/* Initialize GLUT */
-	glutInit( &argc, argv );
-	init();
+  int movieflag = 0;
+  if (argc==4 && atoi(argv[3])==1) {
+    movieflag = 1;
+    fprintf(stdout,"Enabled movie\n");
+  } else {
+    fprintf(stdout,"Movie diabled\n");
+  }
+  
+  /* First we read all points */
+  FILE * f = fopen( argv[1], "r" );
+  if (!f) {
+    fprintf(stderr, "Cannot read %s\n",argv[1]);
+    exit(EXIT_FAILURE);
+  }
+  int num_points = -1;
+  fread(&num_points,sizeof(int),1,f);
+  fprintf(stdout, " Num points is  %d\n",num_points);
+  
+  float* allpoints = (float*) malloc(sizeof(float)*num_points*3);
+  uint8_t* allcolors = (uint8_t*) malloc(sizeof(uint8_t)*num_points*3);
+  int* allids = (int*) malloc(sizeof(int)*num_points);
 
-	/* Check if we have enough parameters */
-	if ( argc < 2 ) {
-		printf( "Usage: %s ptsfile1 [ptsfile2 ...]\n", *argv );
-		exit( EXIT_SUCCESS );
-	}
+  fread(allpoints,sizeof(float),num_points*3,f);
+  fread(allcolors,sizeof(uint8_t),num_points*3,f);
+  fread(allids,sizeof(int),num_points*1,f);
 
-	
+  fclose(f);
+  int i;
+  int maxid = -1;
+  for (i  = 0; i < num_points; ++i) {
+    if (allids[i] > maxid)
+      maxid = allids[i];
+  }
 
-        /* If given a text file as one command line argument, then we read ply files.  This is a trick
-         to avoid command line argument lists which are too long to process */
-        if (argc==3 && determineFileFormat(argv[1])==FILE_FORMAT_TXT && determineFileFormat(argv[2])==FILE_FORMAT_TXT) {
-            FILE * f = fopen( argv[1], "r" );
-            if (!f) {
-              fprintf(stderr, "Cannot read %s\n",argv[1]);
-              exit(EXIT_FAILURE);
-            }
-            int numimages = -1;
-            fscanf(f, "%d", &numimages);
-            fprintf(stdout, " Num images is  %d\n",numimages);
+  fprintf(stdout,"Maxid is %d\n",maxid);
 
-            g_cloudcount = numimages;
-            /* Prepare array */
-            g_clouds = (cloud_t *) malloc( g_cloudcount * sizeof( cloud_t ) );
-            if ( !g_clouds ) {
-              fprintf( stderr, "Could not allocate memory for point clouds!\n" );
-              exit( EXIT_FAILURE );
-            }
+  int* counts = malloc(sizeof(int)*maxid);
+  int* startid = malloc(sizeof(int)*maxid);
+  memset(counts,0,sizeof(int)*maxid);
+  memset(startid,0,sizeof(int)*maxid);
+  for (i = 0; i < num_points; ++i)
+    counts[allids[i]-1]++;
 
-            
-            int i;
-            for (i = 0; i < g_cloudcount; ++i) {
-              char ss[1000];
-              fscanf( f, "%s", ss);
-              fprintf(stdout, "Read %s\n", ss);
-              memset( g_clouds + i, 0, sizeof( cloud_t ) );
-              
-              loadPly(ss, i );
-              g_clouds[i].name = ss;
-              g_clouds[i].enabled = 1;
-              //if (i > 100)
-              //  g_clouds[i].enabled = 0;
-            }
+  for (i = num_points; i >=0 ; i--)
+    startid[allids[i]-1] = i;
 
-            fclose(f);
-
-            // now open the transformations file
-
-            f = fopen(argv[2],"r");
-
-            if (!f) {
-              fprintf(stderr, "Cannot read %s\n",argv[2]);
-              exit(EXIT_FAILURE);
-            }
-            int numimages2 = -1;
-            fscanf(f, "%d", &numimages2);
-            fprintf(stdout, " Num images2 is  %d\n",numimages2);
-            if (numimages != numimages2) {
-              fprintf(stderr, "numimages != numimages2\n");
-              exit( EXIT_FAILURE );
-            }
-
-
-            int mode = -1;
-            for (i = 0; i < g_cloudcount; ++i) {
-
-              double* mat;
-              mat = (double*)malloc(16*sizeof(double));
-              fscanf(f,"%i %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
-                     &mode,&mat[0],&mat[1],&mat[2],&mat[3],&mat[4],&mat[5],&mat[6],&mat[7],&mat[8],&mat[9],&mat[10],&mat[11],&mat[12],&mat[13],&mat[14],&mat[15]);
-              
-              g_clouds[i].mat = mat;
-
-              double* invmat;
-              invmat = (double*)malloc(16*sizeof(double));
-              fscanf(f,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
-                     &invmat[0],&invmat[1],&invmat[2],&invmat[3],&invmat[4],&invmat[5],&invmat[6],&invmat[7],&invmat[8],&invmat[9],&invmat[10],&invmat[11],&invmat[12],&invmat[13],&invmat[14],&invmat[15]);
-              
-              g_clouds[i].invmat = invmat;
+  //for (i = 0; i < maxid; ++i) {
+  //  fprintf(stdout,"counts/startid for %d is %d %d\n",i+1,counts[i],startid[i]+1);
+  //}
+      
+  g_cloudcount = maxid;
+  /* Prepare array */
+  g_clouds = (cloud_t *) malloc( g_cloudcount * sizeof( cloud_t ) );
+  if ( !g_clouds ) {
+    fprintf( stderr, "Could not allocate memory for point clouds!\n" );
+    exit( EXIT_FAILURE );
+  }
 
 
-              g_clouds[i].enabled = mode;
+  for (i = 0; i < g_cloudcount; ++i) {
+    //fprintf(stdout,"Processing cloud %d\n",i);
+    memset( g_clouds + i, 0, sizeof( cloud_t ) );
+    
+    g_clouds[i].name = (char*)malloc(100*sizeof(char));
+    sprintf(g_clouds[i].name,"%05d",i+1);
+    
+    g_clouds[i].enabled = 1;
 
-              if (current_ply_index == -1 && mode == 1)
-                current_ply_index = i;
-              
-            }
+    g_clouds[i].colors = allcolors+(3*startid[i]);
+    g_clouds[i].pointcount = counts[i];
+    g_clouds[i].vertices = allpoints+(3*startid[i]);
+  }
 
-            // note: it needs to be freed sometime?
-            //free(mat);
+  
+  // now open the transformations file
+  f = fopen(argv[2],"r");  
+  if (!f) {
+    fprintf(stderr, "Cannot read %s\n",argv[2]);
+    exit(EXIT_FAILURE);
+  }
+  int numimages2 = -1;
+  fread(&numimages2, sizeof(int),1,f);
+  //fscanf(f, "%d", &numimages2);
+  fprintf(stdout, " Num images2 is  %d\n",numimages2);
+  if (maxid != numimages2) {
+    fprintf(stderr, "maxid != numimages2\n");
+    exit( EXIT_FAILURE );
+  }
+    
+  double score1, score2;
+  fread(&score1, sizeof(double),1,f);
+  fread(&score2, sizeof(double),1,f);
+  fprintf(stdout,"Scores are %.8f %.8f\n",score1,score2);
+    
+  int mode = -1;
+  for (i = 0; i < g_cloudcount; ++i) {
+    
+    fread(&mode, sizeof(int),1,f);
+    double* mat;
+    double* invmat;
 
-            fclose(f);
+    mat = (double*)malloc(16*sizeof(double));
+    invmat = (double*)malloc(16*sizeof(double));
 
-        }
-        else {
-        
-          g_cloudcount = argc - 1;
-          
-          /* Prepare array */
-          g_clouds = (cloud_t *) malloc( g_cloudcount * sizeof( cloud_t ) );
-          if ( !g_clouds ) {
-            fprintf( stderr, "Could not allocate memory for point clouds!\n" );
-            exit( EXIT_FAILURE );
-          }
-          
-          /* Load pts file */
-          int i;
-          for ( i = 0; i < g_cloudcount; i++ ) {
-            memset( g_clouds + i, 0, sizeof( cloud_t ) );
-            switch ( determineFileFormat( argv[ i + 1 ] ) ) {
-            case FILE_FORMAT_PLY:
-              loadPly( argv[ i + 1 ], i );
-              break;
-            case FILE_FORMAT_UOS:
-            default:
-              loadPts( argv[ i + 1 ], i );
-            }
-            g_clouds[i].name = argv[ i + 1 ];
-            g_clouds[i].enabled = 1;
-          }
-          
-        }
-        
-	/* Calculate translation to middle of cloud. */
-	g_trans_center.x = ( g_bb.max.x + g_bb.min.x ) / 2;
-	g_trans_center.y = ( g_bb.max.y + g_bb.min.y ) / 2;
-	g_trans_center.z = ( g_bb.max.z + g_bb.min.z ) / 2;
-        //TJM: comment this out
-	//g_translate.z = -fabs( g_bb.max.z - g_bb.min.z );
+    fread(mat,sizeof(double),16,f);
+    fread(invmat,sizeof(double),16,f);
 
-	/* Print usage information to stdout. */
-	printHelp();
+    /* if (i==49) { */
+    /* fprintf(stdout,"--printing out xform %d\n",i); */
+    /*  int q;  */
+    /* for (q = 0; q < 16; ++q) */
+    /*   fprintf(stdout,"Element[%d]=%.5f\n",q,mat[q]); */
 
-        int value = -1;
-        glutTimerFunc(1,update_movie_index,value);
-
-	/* Run program */
-	glutMainLoop();
-
+    /* for (q = 0; q < 16; ++q) */
+    /*   fprintf(stdout,"Element INV [%d]=%.5f\n",q,invmat[q]); */
 
 
-	cleanup();
-	return EXIT_SUCCESS;
+ 
+    
+    //fscanf(f,"%i %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
+    //       &mode,&mat[0],&mat[1],&mat[2],&mat[3],&mat[4],&mat[5],&mat[6],&mat[7],&mat[8],&mat[9],&mat[10],&mat[11],&mat[12],&mat[13],&mat[14],&mat[15]);
+    
+    g_clouds[i].mat = mat;
+    
+    //fscanf(f,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
+    //       &invmat[0],&invmat[1],&invmat[2],&invmat[3],&invmat[4],&invmat[5],&invmat[6],&invmat[7],&invmat[8],&invmat[9],&invmat[10],&invmat[11],&invmat[12],&invmat[13],&invmat[14],&invmat[15]);
+    
+    g_clouds[i].invmat = invmat;
+    
+    
+    g_clouds[i].enabled = mode;
+    
+    if (current_ply_index == -1 && mode == 1)
+      current_ply_index = i;
+    
+    //fprintf(stdout,"%d ",mode);    
+  }
+
+  //fprintf(stdout,"index 50, verts are %f %f %f\n", g_clouds[49].vertices[0], g_clouds[49].vertices[1],  g_clouds[49].vertices[2]);
+  
+  // note: it needs to be freed sometime?
+  //free(mat);
+  
+  fclose(f);
+  
+  
+  /* Calculate translation to middle of cloud. */
+  //g_trans_center.x = ( g_bb.max.x + g_bb.min.x ) / 2;
+  //g_trans_center.y = ( g_bb.max.y + g_bb.min.y ) / 2;
+  //g_trans_center.z = ( g_bb.max.z + g_bb.min.z ) / 2;
+  //TJM: comment this out
+  //g_translate.z = -fabs( g_bb.max.z - g_bb.min.z );
+  
+  /* Print usage information to stdout. */
+  printHelp();
+  
+  if (movieflag == 1) {
+    int value = -1;
+    glutTimerFunc(1,update_movie_index,value);
+  }
+  
+  /* Run program */
+  glutMainLoop();
+  
+  cleanup();
+  return EXIT_SUCCESS;
 
 }
 

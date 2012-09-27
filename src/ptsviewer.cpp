@@ -18,11 +18,21 @@
 #include "ptsviewer.h"
 #include <Eigen/Dense>
 #include <string>
+#include <vector>
 
 #define min(A,B) ((A)<(B) ? (A) : (B)) 
 #define max(A,B) ((A)>(B) ? (A) : (B)) 
 
-int dump_ply(char* filename);
+void write_point_chunk(FILE* f, double* point1, double* point2, int NCUT);
+
+typedef struct {
+    double r,g,b;
+} COLOUR;
+
+COLOUR GetColour(double v,double vmin,double vmax);
+
+int dump_ply(const char* filename, const char* points_file, const char* reconstruction_file);
+int dump_ply_camera(const char* filename, const char* points_file, const char* reconstruction_file);
 
 /*******************************************************************************
  *         Name:  mouseMoved
@@ -681,11 +691,14 @@ int main( int argc, char ** argv ) {
     std::cout<<"got here\n"<<std::flush<<std::endl;
     fprintf(stdout,"Movie diabled, but writing to %s\n",ply_file);
   }
-  
+
+  char* points_file = argv[1];
+  char* reconstruction_file = argv[2];
+
   /* First we read all points */
-  FILE * f = fopen( argv[1], "r" );
+  FILE * f = fopen( points_file, "r" );
   if (!f) {
-    fprintf(stderr, "Cannot read %s\n",argv[1]);
+    fprintf(stderr, "Cannot read %s\n",points_file);
     exit(EXIT_FAILURE);
   }
   int num_points = -1;
@@ -749,9 +762,9 @@ int main( int argc, char ** argv ) {
 
   
   // now open the transformations file
-  f = fopen(argv[2],"r");  
+  f = fopen(reconstruction_file, "r");  
   if (!f) {
-    fprintf(stderr, "Cannot read %s\n",argv[2]);
+    fprintf(stderr, "Cannot read %s\n", reconstruction_file);
     exit(EXIT_FAILURE);
   }
   int numimages2 = -1;
@@ -770,7 +783,7 @@ int main( int argc, char ** argv ) {
     
   int mode = -1;
   for (i = 0; i < g_cloudcount; ++i) {
-    
+
     fread(&mode, sizeof(int),1,f);
     double* mat;
     double* invmat;
@@ -819,7 +832,7 @@ int main( int argc, char ** argv ) {
   
   fclose(f);
   
-  
+  std::cout<<"done with that"<<std::flush;  
   /* Calculate translation to middle of cloud. */
   //g_trans_center.x = ( g_bb.max.x + g_bb.min.x ) / 2;
   //g_trans_center.y = ( g_bb.max.y + g_bb.min.y ) / 2;
@@ -828,12 +841,17 @@ int main( int argc, char ** argv ) {
   //g_translate.z = -fabs( g_bb.max.z - g_bb.min.z );
 
 
-  //here we dump the ply file
-  //char* plyfile = "/Users/tomasz/Desktop/tmp.ply";
-  dump_ply(ply_file);
   
-  if (ply_file != 0)
+  if (ply_file != 0) {
+//here we dump the ply file
+  //char* plyfile = "/Users/tomasz/Desktop/tmp.ply";
+  std::string camfile(ply_file);
+  camfile += std::string(".camera.ply");
+  dump_ply(ply_file, points_file, reconstruction_file );
+  dump_ply_camera(camfile.c_str(), points_file, reconstruction_file);
+  
     exit(1);
+  }
   
   /* Print usage information to stdout. */
   printHelp();
@@ -950,7 +968,7 @@ void update_movie_index(int value) {
   glutTimerFunc(1,update_movie_index,value);
 }
 
-int dump_ply(char* filename) {
+int dump_ply(const char* filename, const char* points_file, const char* reconstruction_file) {
   if (filename == 0)
     return -1;
   std::cout<<"Dumping ply file to " << std::string(filename)<<std::endl;
@@ -964,9 +982,20 @@ int dump_ply(char* filename) {
   for (int i = 0; i < g_cloudcount; ++i)
     if (g_clouds[i].enabled)
       count+=g_clouds[i].pointcount;
+
+  std::vector<int> valid_inds;
+
+  for (int i = 0; i < g_cloudcount; ++i)
+    if (g_clouds[i].enabled) {
+      valid_inds.push_back(i);
+    }
+
   
   fprintf (f, "ply\n");
   fprintf (f, "format binary_little_endian 1.0\n");
+  fprintf (f, "comment Made by Tomasz Malisiewicz (tomasz@csail.mit.edu)\n");
+  fprintf (f, "comment Made with ptsviewer %s %s\n", points_file, reconstruction_file);
+  fprintf (f, "comment This is the reconstrution file\n");
   fprintf (f, "element vertex %d\n", count);
   fprintf (f, "property float x\n");
   fprintf (f, "property float y\n");
@@ -975,9 +1004,19 @@ int dump_ply(char* filename) {
   fprintf (f, "property uchar green\n");
   fprintf (f, "property uchar blue\n");
   fprintf (f, "end_header\n");
-  for (int i = 0; i < g_cloudcount; ++i) {
-    if (!g_clouds[i].enabled)
-      continue;
+
+  for (int iii = 0; iii < valid_inds.size(); ++iii) {
+    int i = valid_inds[iii];
+    
+    //for (int i = 0; i < g_cloudcount; ++i) {
+    //if (!g_clouds[i].enabled)
+    //  continue;
+    
+    COLOUR c = GetColour((double)iii,(double)0,(double)(valid_inds.size()-1));
+    uint8_t c2[] = {(c.r*255),(c.g*255),(c.b*255)};
+    //std::cout<<"color float is " << c.r <<" " << c.g <<" " <<c.b<<std::endl;
+    //std::cout<<"color is " << int(c2[0]) <<" " << int(c2[1]) << " " << int(c2[2])<<std::endl;
+
     Eigen::Matrix4f T;
     for (int q = 0; q < 16; ++q)
       T(q) = (g_clouds[i].mat[q]);
@@ -988,9 +1027,128 @@ int dump_ply(char* filename) {
         x(q) = g_clouds[i].vertices[3*j+q];
       x = T*x;    
       fwrite((void*)(&x),sizeof(float),3,f);
-      fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
+      // write real scene RGB point
+      //fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
+      // write color based on index of scan
+      fwrite((void*)(&c2),sizeof(uint8_t),3,f);
     }
   }
   fclose(f);
   return 1;
+}
+
+int dump_ply_camera(const char* filename, const char* points_file, const char* reconstruction_file) {
+  if (filename == 0)
+    return -1;
+  std::cout<<"Dumping ply file to " << std::string(filename)<<std::endl;
+  FILE* f = fopen(filename,"w");
+  if (!f) {
+    fprintf(stderr, "Cannot read %s\n",filename);
+    return -1;
+  } 
+
+  std::vector<int> valid_inds;
+
+  for (int i = 0; i < g_cloudcount; ++i)
+    if (g_clouds[i].enabled) {
+      valid_inds.push_back(i);
+    }
+
+  int NCUT = 0;
+  int size = valid_inds.size() + (valid_inds.size()-1)*NCUT;
+
+  fprintf (f, "ply\n");
+  fprintf (f, "format binary_little_endian 1.0\n");
+  fprintf (f, "comment Made by Tomasz Malisiewicz (tomasz@csail.mit.edu)\n");
+  fprintf (f, "comment Made with ptsviewer %s %s\n", points_file, reconstruction_file);
+  fprintf (f, "comment This is the camera centers file\n");
+  fprintf (f, "element vertex %d\n", size);
+  fprintf (f, "property float x\n");
+  fprintf (f, "property float y\n");
+  fprintf (f, "property float z\n");
+  fprintf (f, "property uchar red\n");
+  fprintf (f, "property uchar green\n");
+  fprintf (f, "property uchar blue\n");
+  fprintf (f, "end_header\n");
+
+  for (int iii = 0; iii < valid_inds.size(); ++iii) {
+    int i = valid_inds[iii];
+
+    Eigen::Matrix4f T;
+    for (int q = 0; q < 16; ++q)
+      T(q) = (g_clouds[i].mat[q]);
+    
+    for (int j = 0; j < 3; ++j) {
+      fwrite((void*)(&T(j,3)),sizeof(float),1,f);
+    }
+    COLOUR res = GetColour(iii,0,valid_inds.size()-1);
+    uint8_t cols[3] = {res.r*255,res.g*255,res.b*255};
+    fwrite((void*)(&cols),sizeof(uint8_t),3,f);
+  }
+
+  for (int iii = 0; iii < valid_inds.size()-1; ++iii) {
+    int i = valid_inds[iii];
+    int j = valid_inds[iii+1];
+    
+    double* point1 = (g_clouds[i].mat+12);
+    double* point2 = (g_clouds[j].mat+12);
+
+    write_point_chunk(f,point1,point2,NCUT);
+  }
+
+
+
+  fclose(f);
+  return 1;
+}
+
+//typedef struct {
+//    double r,g,b;
+//} COLOUR;
+
+COLOUR GetColour(double v,double vmin,double vmax)
+{
+   COLOUR c = {1.0,1.0,1.0}; // white
+   double dv;
+
+   if (v < vmin)
+      v = vmin;
+   if (v > vmax)
+      v = vmax;
+   dv = vmax - vmin;
+
+   if (v < (vmin + 0.25 * dv)) {
+      c.r = 0;
+      c.g = 4 * (v - vmin) / dv;
+   } else if (v < (vmin + 0.5 * dv)) {
+      c.r = 0;
+      c.b = 1 + 4 * (vmin + 0.25 * dv - v) / dv;
+   } else if (v < (vmin + 0.75 * dv)) {
+      c.r = 4 * (v - vmin - 0.5 * dv) / dv;
+      c.b = 0;
+   } else {
+      c.g = 1 + 4 * (vmin + 0.75 * dv - v) / dv;
+      c.b = 0;
+   }
+
+   return(c);
+}
+
+void write_point_chunk(FILE* f, double* point1, double* point2, int NCUT) {
+
+  float diff0 = (point2[0]-point1[0]) / (NCUT+1);
+  float diff1 = (point2[1]-point1[1]) / (NCUT+1);
+  float diff2 = (point2[2]-point1[2]) / (NCUT+1);
+  
+  for (int i = 1; i <= NCUT; ++i) {
+    float x0 = point1[0]+diff0*i;
+    float x1 = point1[1]+diff1*i;
+    float x2 = point1[2]+diff2*i;
+    fwrite((void*)&x0,sizeof(float),1,f);
+    fwrite((void*)&x1,sizeof(float),1,f);
+    fwrite((void*)&x2,sizeof(float),1,f);
+    uint8_t cols[3] = {0,0,255};
+    fwrite((void*)(&cols),sizeof(uint8_t),3,f);
+  }
+
 }

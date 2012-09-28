@@ -18,10 +18,45 @@
 #include "ptsviewer.h"
 #include <Eigen/Dense>
 #include <string>
+#include <map>
 #include <vector>
+#include <iterator>
+#include <kdtree++/kdtree.hpp>
+#include <cstdio>
+
+using std::vector;
 
 #define min(A,B) ((A)<(B) ? (A) : (B)) 
 #define max(A,B) ((A)>(B) ? (A) : (B)) 
+struct kdtreeNode
+{
+  typedef double value_type;
+  
+  double xyz[3];
+  size_t index;
+  
+  value_type operator[](size_t n) const
+  {
+    return xyz[n];
+  }
+  
+  double distance( const kdtreeNode &node)
+  {
+    double x = xyz[0] - node.xyz[0];
+    double y = xyz[1] - node.xyz[1];
+    double z = xyz[2] - node.xyz[2];
+    
+    // this is not correct   return sqrt( x*x+y*y+z*z);
+    
+    // this is what kdtree checks with find_within_range()
+    // the "manhattan distance" from the search point.
+    // effectively, distance is the maximum distance in any one dimension.
+    return max(fabs(x),max(fabs(y),fabs(z)));
+    
+  }
+};
+
+void update_movie_index(int value);
 
 void write_point_chunk(FILE* f, double* point1, double* point2, int NCUT, uint8_t* color);
 
@@ -794,6 +829,11 @@ void update_movie_index(int value) {
 }
 
 int dump_ply(const char* filename, const char* points_file, const char* reconstruction_file) {
+
+  typedef KDTree::KDTree<3,kdtreeNode> treeType;
+  treeType tree;
+
+  
   if (filename == 0)
     return -1;
   std::cout<<"Dumping ply file to " << std::string(filename)<<std::endl;
@@ -853,12 +893,52 @@ int dump_ply(const char* filename, const char* points_file, const char* reconstr
       x = T*x;    
       fwrite((void*)(&x),sizeof(float),3,f);
       // write real scene RGB point
-      //fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
+      fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
       // write color based on index of scan
-      fwrite((void*)(&c2),sizeof(uint8_t),3,f);
+      //fwrite((void*)(&c2),sizeof(uint8_t),3,f);
+
+      kdtreeNode node;
+      node.xyz[0] = x(0);
+      node.xyz[1] = x(1);
+      node.xyz[2] = x(2);
+      node.index = i;
+      tree.insert(node);
+
     }
   }
   fclose(f);
+  // std::cout<<"Optimizing KDtree"<<std::endl;
+  // tree.optimize();
+  // std::cout<<"Done Optimizing KDtree"<<std::endl;
+  
+  // std::map<std::pair<int,int>,int> hits;
+  
+  // count = 0;
+  // for (treeType::const_iterator iter = tree.begin(); iter!=tree.end(); iter++) {
+
+  //   if (count%200 == 0)
+  //     std::cout<<"."<<std::flush;      
+ 
+  //   vector<kdtreeNode> howClose;
+  //   double limit = .05;
+  //   tree.find_within_range(*iter,limit,std::back_insert_iterator<vector<kdtreeNode> >(howClose));
+    
+  //   //std::cout<<"how close size is " <<howClose.size()<<std::endl;
+    
+  //   for (int i = 0; i < howClose.size(); ++i) {
+  //     //std::cout<<"index " <<iter->index <<" hit index " <<howClose[i].index<<std::endl;
+  //     hits[std::pair<int,int>(iter->index,howClose[i].index)]++;
+  //   }
+  //   count++;
+  // }
+
+  // for (std::map<std::pair<int,int>,int>::const_iterator i = hits.begin(); i!=hits.end(); i++) {
+  //   std::pair<int,int> f = i->first;
+  //   int c = i->second;
+  //   std::cout<<"[i,j] = [" << f.first << "," << f.second << "] count= " << c<<std::endl;
+
+  // }
+
   return 1;
 }
 

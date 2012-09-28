@@ -16,7 +16,7 @@ GLUTLIB=-lglut
 MLIB   =-lm
 
 # includes and libs
-INCS=-I. -I/usr/X11/include/ ${GLINC} ${GLUINC} ${GLUTINC} -I /opt/local/include/eigen3
+INCS=-I. -I/usr/X11/include/ ${GLINC} ${GLUINC} ${GLUTINC} -I /opt/local/include/eigen3 -I /Users/tomasz/libkdtree/
 LIBS=-L/usr/lib ${GLLIB} ${GLULIB} ${GLUTLIB} ${MLIB}
 
 # dirs for source and object files

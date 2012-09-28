@@ -25,6 +25,8 @@
 #include <math.h>
 
 #include <float.h>
+#include <Eigen/Dense>
+//#include "Eigen/PlainObjectBase.h"
 
 #define FILE_FORMAT_NONE 0
 #define FILE_FORMAT_UOS  1
@@ -45,9 +47,9 @@ uint8_t determineFileFormat( char * filename );
 
 /* Type definitions */
 typedef struct {
-	GLdouble x;
-	GLdouble y;
-	GLdouble z;
+  GLdouble x;
+  GLdouble y;
+  GLdouble z;
 } coord3d_t;
 
 typedef struct {
@@ -56,17 +58,18 @@ typedef struct {
 } boundingbox_t;
 
 typedef struct {
-	float *       vertices;
-	uint8_t *     colors;
-	uint32_t      pointcount;
-	int           enabled;
-	coord3d_t     trans;
-	coord3d_t     rot;
-	int           selected;
-	char *        name;
-	boundingbox_t boundingbox;
-        double*       mat;
-        double*       invmat;
+  //Eigen::PlainObjectBase<float>* base;
+  float *       vertices;
+  uint8_t *     colors;
+  uint32_t      pointcount;
+  int           enabled;
+  coord3d_t     trans;
+  coord3d_t     rot;
+  int           selected;
+  char *        name;
+  boundingbox_t boundingbox;
+  double*       mat;
+  double*       invmat;
 } cloud_t;
 
 //float hack_mat[] = {1,0,0,0,0,1,0,0,0,0,-1,0,0,0,0,1};
@@ -96,8 +99,8 @@ int       g_left            =                -75;
 int current_ply_index = -1;
 
 boundingbox_t g_bb = { 
-	{ DBL_MAX, DBL_MAX, DBL_MAX }, 
-	{ DBL_MIN, DBL_MIN, DBL_MIN } };
+  { DBL_MAX, DBL_MAX, DBL_MAX }, 
+  { DBL_MIN, DBL_MIN, DBL_MIN } };
 
 /* Define viewer modes */
 
@@ -105,6 +108,6 @@ boundingbox_t g_bb = {
 #define VIEWER_MODE_SELECT  1
 #define VIEWER_MODE_MOVESEL 2
 
-int       g_mode            = VIEWER_MODE_NORMAL;
+int g_mode = VIEWER_MODE_NORMAL;
 
-void update_movie_index(int value);
+

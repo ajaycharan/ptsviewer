@@ -28,6 +28,9 @@
 #include <Eigen/Dense>
 //#include "Eigen/PlainObjectBase.h"
 
+// when enabled, dumps out colors indicating scan time, and not raw RGB values
+static int color_time_mode = 0;
+
 #define FILE_FORMAT_NONE 0
 #define FILE_FORMAT_UOS  1
 #define FILE_FORMAT_PLY  2

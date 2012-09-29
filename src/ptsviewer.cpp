@@ -26,6 +26,8 @@
 
 using std::vector;
 
+
+
 #define min(A,B) ((A)<(B) ? (A) : (B)) 
 #define max(A,B) ((A)>(B) ? (A) : (B)) 
 struct kdtreeNode
@@ -574,7 +576,11 @@ int main( int argc, char ** argv ) {
 
   /* Check if we have enough parameters */
   if ( argc < 3 ) {
-    printf( "Usage: %s allpoints.bin out.reconstruction MOVIEFLAG \"0 r 1\"\n", argv[0] );
+    printf( "Usage: %s points.bin out.reconstruction MOVIEFLAG_or_PLY COLORSFLAG\n", argv[0] );
+    printf( "  points.bin: binary file which contains untransformed points\n");
+    printf( "  out.reconstruction: The reconstruction which contains a list of transformations\n");
+    printf( "  MOVIEFLAG_or_PLY: Either \"1\" to enable movie playing or the location of a ply file to dump\n");
+    printf( "  COLORSFLAG: if \"1\" then use camera time colors instead of RGB colors\n");
     exit( EXIT_SUCCESS );
   }
 
@@ -583,9 +589,14 @@ int main( int argc, char ** argv ) {
   if (argc==4 && atoi(argv[3])==1) {
     movieflag = 1;
     fprintf(stdout,"Enabled movie\n");
-  } else if (argc==4){
+  } else if (argc==4 || argc==5){
     ply_file = argv[3];
     fprintf(stdout,"Movie diabled, writing cloud to %s\n",ply_file);
+  }
+
+  if (argc == 5 && atoi(argv[4])==1) {
+    color_time_mode = 1;
+    std::cout<<"Enabled time color mode\n";
   }
 
   char* points_file = argv[1];
@@ -688,7 +699,14 @@ int main( int argc, char ** argv ) {
     invmat = (double*)malloc(16*sizeof(double));
 
     fread(mat,sizeof(double),16,f);
-    fread(invmat,sizeof(double),16,f);
+
+    Eigen::Matrix4d emat(mat);
+    Eigen::Matrix4d ematinv = emat.inverse();
+    int counter = 0;
+    for (int a = 0; a < 4; ++a)
+      for (int b = 0; b < 4; ++b)
+        invmat[counter++] = ematinv(b,a);
+    //fread(invmat,sizeof(double),16,f);
 
     /* if (i==49) { */
     /* fprintf(stdout,"--printing out xform %d\n",i); */
@@ -892,10 +910,15 @@ int dump_ply(const char* filename, const char* points_file, const char* reconstr
         x(q) = g_clouds[i].vertices[3*j+q];
       x = T*x;    
       fwrite((void*)(&x),sizeof(float),3,f);
-      // write real scene RGB point
-      fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
-      // write color based on index of scan
-      //fwrite((void*)(&c2),sizeof(uint8_t),3,f);
+
+      if (color_time_mode == 1) {
+        // write color based on index of scan
+        fwrite((void*)(&c2),sizeof(uint8_t),3,f);
+      }
+      else {
+        // write real scene RGB point
+        fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
+      }
 
       kdtreeNode node;
       node.xyz[0] = x(0);

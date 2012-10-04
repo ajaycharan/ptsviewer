@@ -19,13 +19,15 @@
 #include <Eigen/Dense>
 #include <string>
 #include <map>
+#include <utility>
+#include <tuple>
 #include <vector>
 #include <iterator>
 #include <kdtree++/kdtree.hpp>
+//#include <nanoflann.hpp>
 #include <cstdio>
 
 using std::vector;
-
 
 
 #define min(A,B) ((A)<(B) ? (A) : (B)) 
@@ -58,6 +60,15 @@ struct kdtreeNode
   }
 };
 
+typedef KDTree::KDTree<3,kdtreeNode> treeType;
+
+// get the indices of the nearest neighbors
+void get_nn_indices(const treeType& tree, double limit, int target, int skip, std::map<std::pair<int,int>,int>& hits);
+
+void read_points_file(char* points_file, float*& allpoints, uint8_t*& allcolors, int*& allids, int& num_points);
+
+void read_points_file2(char* points_file, float*& allpoints, uint8_t*& allcolors, int*& allids, int& num_points);
+
 void update_movie_index(int value);
 
 void write_point_chunk(FILE* f, double* point1, double* point2, int NCUT, uint8_t* color);
@@ -69,6 +80,7 @@ typedef struct {
 COLOUR GetColour(double v,double vmin,double vmax);
 
 int dump_ply(const char* filename, const char* points_file, const char* reconstruction_file);
+int dump_icp(const char* filename);
 int dump_ply_camera(const char* filename, const char* points_file, const char* reconstruction_file);
 
 /*******************************************************************************
@@ -179,7 +191,6 @@ void drawScene() {
       
       //if (g_clouds[i].mat)
       //glLoadMatrixd(g_clouds[i].mat);
-      
       
       
       /* local (this cloud only) */
@@ -579,17 +590,19 @@ int main( int argc, char ** argv ) {
     printf( "Usage: %s points.bin out.reconstruction MOVIEFLAG_or_PLY COLORSFLAG\n", argv[0] );
     printf( "  points.bin: binary file which contains untransformed points\n");
     printf( "  out.reconstruction: The reconstruction which contains a list of transformations\n");
-    printf( "  MOVIEFLAG_or_PLY: Either \"1\" to enable movie playing or the location of a ply file to dump\n");
+    printf( "  MOVIEFLAG_or_PLY: Either \"1\" to enable movie playing or \"2\" for ICP_constraint_generator, or the location of a ply file to dump\n");
     printf( "  COLORSFLAG: if \"1\" then use camera time colors instead of RGB colors\n");
     exit( EXIT_SUCCESS );
   }
 
   int movieflag = 0;
   char* ply_file = 0;
+  int icp_mode = 0;
   if (argc==4 && atoi(argv[3])==1) {
     movieflag = 1;
     fprintf(stdout,"Enabled movie\n");
-  } else if (argc==4 || argc==5){
+  } 
+  else if (argc==4 || argc==5) {
     ply_file = argv[3];
     fprintf(stdout,"Movie diabled, writing cloud to %s\n",ply_file);
   }
@@ -597,30 +610,19 @@ int main( int argc, char ** argv ) {
   if (argc == 5 && atoi(argv[4])==1) {
     color_time_mode = 1;
     std::cout<<"Enabled time color mode\n";
+  } else if (argc==5 && strcmp(argv[4],"icp")==0) {
+    icp_mode = 1;
   }
 
   char* points_file = argv[1];
   char* reconstruction_file = argv[2];
 
-  /* First we read all points */
-  FILE * f = fopen( points_file, "r" );
-  if (!f) {
-    fprintf(stderr, "Cannot read %s\n",points_file);
-    exit(EXIT_FAILURE);
-  }
-  int num_points = -1;
-  fread(&num_points,sizeof(int),1,f);
-  fprintf(stdout, " Num points is  %d\n",num_points);
-  
-  float* allpoints = (float*) malloc(sizeof(float)*num_points*3);
-  uint8_t* allcolors = (uint8_t*) malloc(sizeof(uint8_t)*num_points*3);
-  int* allids = (int*) malloc(sizeof(int)*num_points);
+  float* allpoints;
+  uint8_t* allcolors;
+  int* allids;
+  int num_points;
+  read_points_file2(points_file, allpoints, allcolors, allids, num_points);
 
-  fread(allpoints,sizeof(float),num_points*3,f);
-  fread(allcolors,sizeof(uint8_t),num_points*3,f);
-  fread(allids,sizeof(int),num_points*1,f);
-
-  fclose(f);
   int i;
   int maxid = -1;
   for (i  = 0; i < num_points; ++i) {
@@ -669,7 +671,7 @@ int main( int argc, char ** argv ) {
 
   
   // now open the transformations file
-  f = fopen(reconstruction_file, "r");  
+  FILE* f = fopen(reconstruction_file, "r");  
   if (!f) {
     fprintf(stderr, "Cannot read %s\n", reconstruction_file);
     exit(EXIT_FAILURE);
@@ -734,6 +736,12 @@ int main( int argc, char ** argv ) {
   //free(mat);
  
   fclose(f);
+
+  if (ply_file != 0 && icp_mode==1) {
+    dump_icp(ply_file);
+    return EXIT_SUCCESS;
+    
+  }
   if (ply_file != 0) {
     //here we dump the ply file
     //char* plyfile = "/Users/tomasz/Desktop/tmp.ply";
@@ -847,10 +855,6 @@ void update_movie_index(int value) {
 }
 
 int dump_ply(const char* filename, const char* points_file, const char* reconstruction_file) {
-
-  typedef KDTree::KDTree<3,kdtreeNode> treeType;
-  treeType tree;
-
   
   if (filename == 0)
     return -1;
@@ -920,48 +924,160 @@ int dump_ply(const char* filename, const char* points_file, const char* reconstr
         fwrite((void*)(&g_clouds[i].colors[3*j]),sizeof(uint8_t),3,f);
       }
 
-      kdtreeNode node;
-      node.xyz[0] = x(0);
-      node.xyz[1] = x(1);
-      node.xyz[2] = x(2);
-      node.index = i;
-      tree.insert(node);
 
     }
   }
   fclose(f);
-  // std::cout<<"Optimizing KDtree"<<std::endl;
-  // tree.optimize();
-  // std::cout<<"Done Optimizing KDtree"<<std::endl;
-  
-  // std::map<std::pair<int,int>,int> hits;
-  
-  // count = 0;
-  // for (treeType::const_iterator iter = tree.begin(); iter!=tree.end(); iter++) {
+  return 1;
+}
 
-  //   if (count%200 == 0)
-  //     std::cout<<"."<<std::flush;      
- 
-  //   vector<kdtreeNode> howClose;
-  //   double limit = .05;
-  //   tree.find_within_range(*iter,limit,std::back_insert_iterator<vector<kdtreeNode> >(howClose));
+int dump_icp(const char* filename) {
+
+  //typedef KDTreeEigenMatrixAdaptor< Eigen::Matrix<num_t,Dynamic,Dynamic> >  my_kd_tree_t;
+
+  treeType tree;
+
+  const int kdtree_build_skip = 1;
+  const int kdtree_build_offset = 0;
+
+  if (filename == 0)
+    return -1;
+  std::cout<<"Dumping icp file to " << std::string(filename)<<std::endl;
+  std::cout<<"Building kdtree"<<std::endl;
+  FILE* f = fopen(filename,"w");
+  if (!f) {
+    fprintf(stderr, "Cannot read %s\n",filename);
+    return -1;
+  } 
+  
+  int count = 0;
+  for (int i = 0; i < g_cloudcount; ++i)
+    if (g_clouds[i].enabled)
+      count+=g_clouds[i].pointcount;
+
+  std::vector<int> valid_inds;
+
+  for (int i = 0; i < g_cloudcount; ++i)
+    if (g_clouds[i].enabled) {
+      valid_inds.push_back(i);
+    }
+
+
+  const double CUBE_SIZE = .01;
+  std::map<std::tuple<int,int,int>,int> occupied_counts;
+  std::map<std::tuple<int,int,int>,int> sum_counts;
+  std::map<std::tuple<int,int,int>,std::map<int,bool> > occupied_ids;
+
+  for (int iii = 0; iii < valid_inds.size(); ++iii) {
+    int i = valid_inds[iii];
+    std::cout<<","<<std::flush;
+    Eigen::Matrix4f T;
+    for (int q = 0; q < 16; ++q)
+      T(q) = (g_clouds[i].mat[q]);
+
+
+    Eigen::Matrix<float,4,Eigen::Dynamic> allx(4,g_clouds[i].pointcount);
+    for (int j = kdtree_build_offset; j < g_clouds[i].pointcount; j++) {
+      for (int q = 0; q < 3; ++q)
+        allx(q,j) = g_clouds[i].vertices[3*j+q];
+      allx(3,j) = 1;
+    }
+    allx = T*allx;
+
+    for (int j = kdtree_build_offset; j < g_clouds[i].pointcount; j+=kdtree_build_skip) {
+      //Eigen::Vector4f x;
+      //x(3) = 1;
+      //for (int q = 0; q < 3; ++q)
+      //  x(q) = g_clouds[i].vertices[3*j+q];
+      //x = T*x;    
+      int a = round(allx(0,j)/CUBE_SIZE);
+      int b = round(allx(1,j)/CUBE_SIZE);
+      int c = round(allx(2,j)/CUBE_SIZE);
+      occupied_counts[std::tuple<int,int,int>(a,b,c)]++;
+      sum_counts[std::tuple<int,int,int>(a,b,c)]++;
+      occupied_ids[std::tuple<int,int,int>(a,b,c)][i] = true;
+
+      // generate points from current measurement to camera center as free space
+      Eigen::Vector3f center;
+      Eigen::Vector3f x;
+      for (int q = 0; q < 3; ++q) {
+        center(q) = T(q, 3);
+        x(q) = allx(q, j);
+      }
+
+      Eigen::Vector3f n = center - x;
+      n.normalize();
+      const double PAD = .03;
+      x = x - PAD*n;
+
+      for (double alpha = 0; alpha<=1; alpha+=.1) {
+        Eigen::Vector3f x2 = x-n*alpha;
+        sum_counts[std::tuple<int,int,int>(round(x2(0)/CUBE_SIZE),round(x2(1)/CUBE_SIZE),round(x2(2)/CUBE_SIZE))]++;
+      }
+     
+      kdtreeNode node;
+      node.xyz[0] = allx(0,j);//x(0);
+      node.xyz[1] = allx(1,j);//x(1);
+      node.xyz[2] = allx(2,j);//x(2);
+      node.index = i;
+      //tree.insert(node);
+    }
+  }
+  
+  std::map<std::tuple<int,int,int>,double> occupied_prob;
+
+  FILE* fid = fopen("/Users/tomasz/Desktop/vols.txt","w");
+
+  for (std::map<std::tuple<int,int,int>,int>::const_iterator i = occupied_counts.begin(); i!=occupied_counts.end(); ++i) {
+
+    double pocc = (double)i->second / double(sum_counts[i->first]+.000001);
+    occupied_prob[i->first] = pocc;
     
-  //   //std::cout<<"how close size is " <<howClose.size()<<std::endl;
+    fprintf(fid,"%f %f %f %f\n",
+            CUBE_SIZE*std::get<0>(i->first),
+            CUBE_SIZE*std::get<1>(i->first),
+            CUBE_SIZE*std::get<2>(i->first),
+            pocc);
     
-  //   for (int i = 0; i < howClose.size(); ++i) {
-  //     //std::cout<<"index " <<iter->index <<" hit index " <<howClose[i].index<<std::endl;
-  //     hits[std::pair<int,int>(iter->index,howClose[i].index)]++;
-  //   }
-  //   count++;
+  }
+
+  fclose(fid);
+  
+  std::cout<<"GOT HERE"<<std::flush<<std::endl;
+  std::cout<<"volume size is " <<occupied_counts.size()<<std::endl;
+  std::cout<<"ids size is " <<occupied_ids.size()<<std::endl;
+  std::cout<<"sum counts size is " <<sum_counts.size()<<std::endl;
+  std::cout<<"Optimizing KDtree"<<std::endl;
+
+  exit(1);
+  tree.optimize();
+  const int skip = 100;
+
+  // const double limit_close = .02;
+  // std::cout<<"BALL RADIUS CLOSE = "<<limit_close<<std::endl;
+  // std::map<std::pair<int,int>,int> hits_close;
+  // for (int i = 0; i < valid_inds.size(); ++i) {
+  //   int target = valid_inds[i];
+  //   get_nn_indices(tree, limit_close, target, skip, hits_close);
+  //   std::cout<<"."<<std::flush;
   // }
 
-  // for (std::map<std::pair<int,int>,int>::const_iterator i = hits.begin(); i!=hits.end(); i++) {
-  //   std::pair<int,int> f = i->first;
-  //   int c = i->second;
-  //   std::cout<<"[i,j] = [" << f.first << "," << f.second << "] count= " << c<<std::endl;
+  const double limit_far = .1;
+  std::cout<<"BALL RADIUS FAR = "<<limit_far<<std::endl;
+  std::map<std::pair<int,int>,int> hits_far;
+  for (int i = 0; i < valid_inds.size(); ++i) {
+    int target = valid_inds[i];
+    get_nn_indices(tree, limit_far, target, skip, hits_far);
+    std::cout<<"."<<std::flush;
+  }
+  
+  for (std::map<std::pair<int,int>,int>::const_iterator i = hits_far.begin(); i!=hits_far.end(); i++) {
+    //int val_close = hits_close[i->first];    
+    fprintf(f,"%d %d %d\n",i->first.first,i->first.second,i->second);//,val_close);
+    //std::cout<< i->first.first << " " << i->first.second << " " << i->second<<std::endl;
+  }
 
-  // }
-
+  fclose(f);
   return 1;
 }
 
@@ -1111,3 +1227,121 @@ void write_point_chunk(FILE* f, double* point1, double* point2, int NCUT, uint8_
   }
 
 }
+
+void get_nn_indices(const treeType& tree, double limit,  int target, int skip, std::map<std::pair<int,int>,int>& hits) {
+  Eigen::Matrix4f T;
+  for (int q = 0; q < 16; ++q)
+    T(q) = (g_clouds[target].mat[q]);
+
+  for (int q = 0; q < g_clouds[target].pointcount; q+=skip) {
+    Eigen::Vector4f x;
+    x(3) = 1;
+    for (int z = 0; z < 3; ++z)
+      x(z) = g_clouds[target].vertices[3*q+z];
+    x = T*x;    
+    kdtreeNode query;
+    query.xyz[0] = x(0);
+    query.xyz[1] = x(1);
+    query.xyz[2] = x(2);
+    vector<kdtreeNode> howClose;
+    std::map<int,int> gotten;
+    tree.find_within_range(query,limit,std::back_insert_iterator<vector<kdtreeNode> >(howClose));
+    for (int i = 0; i < howClose.size(); ++i) {
+      if (gotten[howClose[i].index] > 0)
+        continue;
+      
+      hits[std::pair<int,int>(target,howClose[i].index)]++;
+      gotten[howClose[i].index]++;
+    }
+
+  }
+
+}
+
+void read_points_file(char* points_file, float*& allpoints, uint8_t*& allcolors, int*& allids, int& num_points)
+{
+  /* First we read all points */
+  FILE * f = fopen( points_file, "r" );
+  if (!f) {
+    fprintf(stderr, "Cannot read %s\n",points_file);
+    exit(EXIT_FAILURE);
+  }
+  
+  fread(&num_points,sizeof(int),1,f);
+  fprintf(stdout, " Num points is  %d\n",num_points);
+  
+  allpoints = (float*) malloc(sizeof(float)*num_points*3);
+  allcolors = (uint8_t*) malloc(sizeof(uint8_t)*num_points*3);
+  allids = (int*) malloc(sizeof(int)*num_points);
+
+  fread(allpoints,sizeof(float),num_points*3,f);
+  fread(allcolors,sizeof(uint8_t),num_points*3,f);
+  fread(allids,sizeof(int),num_points*1,f);
+
+  fclose(f);
+
+}
+
+void read_points_file2(char* points_file, float*& allpoints, uint8_t*& allcolors, int*& allids, int& num_points)
+{
+  num_points = 20412*4000;
+  /* First we read all points */
+  FILE * f = fopen( points_file, "r" );
+  if (!f) {
+    fprintf(stderr, "Cannot read %s\n",points_file);
+    exit(EXIT_FAILURE);
+  }
+
+  fprintf(stdout, " Num points is  %d\n",num_points);
+  
+  allpoints = (float*) malloc(sizeof(float)*num_points*3);
+  allcolors = (uint8_t*) malloc(sizeof(uint8_t)*num_points*3);
+  allids = (int*) malloc(sizeof(int)*num_points);
+  
+  int c = 0;
+  float normals[3*4000];
+  for (int i = 0; i < 20412; ++i) {
+    int index;
+    int num;
+    fread(&index,sizeof(int),1,f);
+    fread(&num,sizeof(int),1,f);
+    std::cout<<"index is " <<index<<std::endl;
+    //std::cout<<"."<<std::flush;
+    fread(allpoints+(4000*i*3),sizeof(float),3*4000,f);
+    fread(normals,sizeof(float),3*4000,f);
+    fread(allcolors+(4000*i*3),sizeof(uint8_t),3*4000,f);
+    for (int q = 0; q < 4000; ++q) {
+      allids[c] = index;
+      c++;
+    }
+  }
+  
+  // char filename[1000];
+  // num_points = 0;
+  // while (!feof(f)) {
+  //   fscanf(f,"%s",filename);
+  //   std::cout<<"just read filename " <<filename<<std::endl;
+  //   int index;
+  //   int num;
+  //   FILE* curf = fopen(filename,"r");
+  //   fread(&index,sizeof(int),1,curf);
+  //   fread(&num,sizeof(int),1,curf);
+  //   num_points += num;
+  //   fclose(curf);
+  // }
+  
+
+
+  
+  // allpoints = (float*) malloc(sizeof(float)*num_points*3);
+  // allcolors = (uint8_t*) malloc(sizeof(uint8_t)*num_points*3);
+  // allids = (int*) malloc(sizeof(int)*num_points);
+
+  // fread(allpoints,sizeof(float),num_points*3,f);
+  // fread(allcolors,sizeof(uint8_t),num_points*3,f);
+  // fread(allids,sizeof(int),num_points*1,f);
+
+  fclose(f);
+
+}
+

@@ -662,7 +662,7 @@ int main( int argc, char ** argv ) {
     g_clouds[i].name = (char*)malloc(100*sizeof(char));
     sprintf(g_clouds[i].name,"%05d",i+1);
     
-    g_clouds[i].enabled = 1;
+    g_clouds[i].enabled = 0;
 
     g_clouds[i].colors = allcolors+(3*startid[i]);
     g_clouds[i].pointcount = counts[i];
@@ -678,64 +678,52 @@ int main( int argc, char ** argv ) {
   }
   int numimages2 = -1;
   fread(&numimages2, sizeof(int),1,f);
-  //fscanf(f, "%d", &numimages2);
   fprintf(stdout, " Num images2 is  %d\n",numimages2);
   if (maxid != numimages2) {
     fprintf(stderr, "maxid != numimages2\n");
     exit( EXIT_FAILURE );
   }
     
-  double score1, score2;
+  double score1;
   fread(&score1, sizeof(double),1,f);
-  fread(&score2, sizeof(double),1,f);
-  fprintf(stdout,"Scores are %.8f %.8f\n",score1,score2);
+  fprintf(stdout,"Score is %.8ff\n",score1);
     
-  int mode = -1;
-  for (i = 0; i < g_cloudcount; ++i) {
+  int index = -1;
+  int number_reconstructions = 0;
+  while (1) {
 
-    fread(&mode, sizeof(int),1,f);
+    if (fread(&index, sizeof(int),1,f)==0)
+      break;
+    
     double* mat;
     double* invmat;
-
+    std::cout<<"Recon index is " <<index<<std::endl;
     mat = (double*)malloc(16*sizeof(double));
     invmat = (double*)malloc(16*sizeof(double));
 
-    fread(mat,sizeof(double),16,f);
+    assert(fread(mat,sizeof(double),16,f));
 
     Eigen::Matrix4d emat(mat);
     Eigen::Matrix4d ematinv = emat.inverse();
+
+    std::cout<<"mat is " << emat<<std::endl;
     int counter = 0;
     for (int a = 0; a < 4; ++a)
       for (int b = 0; b < 4; ++b)
         invmat[counter++] = ematinv(b,a);
-    //fread(invmat,sizeof(double),16,f);
+    g_clouds[index].mat = mat;  
+    
+    g_clouds[index].invmat = invmat;
+    g_clouds[index].enabled = 1;
+    
+    if (current_ply_index == -1)
+      current_ply_index = index;
 
-    /* if (i==49) { */
-    /* fprintf(stdout,"--printing out xform %d\n",i); */
-    /*  int q;  */
-    /* for (q = 0; q < 16; ++q) */
-    /*   fprintf(stdout,"Element[%d]=%.5f\n",q,mat[q]); */
-
-    /* for (q = 0; q < 16; ++q) */
-    /*   fprintf(stdout,"Element INV [%d]=%.5f\n",q,invmat[q]); */
-    
-    //fscanf(f,"%i %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
-    //       &mode,&mat[0],&mat[1],&mat[2],&mat[3],&mat[4],&mat[5],&mat[6],&mat[7],&mat[8],&mat[9],&mat[10],&mat[11],&mat[12],&mat[13],&mat[14],&mat[15]);    
-    g_clouds[i].mat = mat;  
-    //fscanf(f,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
-    //       &invmat[0],&invmat[1],&invmat[2],&invmat[3],&invmat[4],&invmat[5],&invmat[6],&invmat[7],&invmat[8],&invmat[9],&invmat[10],&invmat[11],&invmat[12],&invmat[13],&invmat[14],&invmat[15]);
-    
-    g_clouds[i].invmat = invmat;
-    g_clouds[i].enabled = mode;
-    
-    if (current_ply_index == -1 && mode == 1)
-      current_ply_index = i;
+    number_reconstructions++;
   }
-
-  // note: it needs to be freed sometime?
-  //free(mat);
  
   fclose(f);
+  std::cout<<"Read "<<number_reconstructions<<" reconstructions"<<std::endl;
 
   if (ply_file != 0 && icp_mode==1) {
     dump_icp(ply_file);
@@ -753,7 +741,7 @@ int main( int argc, char ** argv ) {
   }
   
   /* Print usage information to stdout. */
-  printHelp();
+  //printHelp();
 
   /* Initialize GLUT */
   glutInit( &argc, argv );

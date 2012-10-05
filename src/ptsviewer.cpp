@@ -678,11 +678,11 @@ int main( int argc, char ** argv ) {
   }
   int numimages2 = -1;
   fread(&numimages2, sizeof(int),1,f);
-  fprintf(stdout, " Num images2 is  %d\n",numimages2);
-  if (maxid != numimages2) {
-    fprintf(stderr, "maxid != numimages2\n");
-    exit( EXIT_FAILURE );
-  }
+  // fprintf(stdout, " Num images2 is  %d\n",numimages2);
+  // if (maxid != numimages2) {
+  //   fprintf(stderr, "maxid != numimages2\n");
+  //   exit( EXIT_FAILURE );
+  // }
     
   double score1;
   fread(&score1, sizeof(double),1,f);
@@ -695,6 +695,9 @@ int main( int argc, char ** argv ) {
     if (fread(&index, sizeof(int),1,f)==0)
       break;
     
+    //from matlab to c++
+    index = index - 1;
+
     double* mat;
     double* invmat;
     std::cout<<"Recon index is " <<index<<std::endl;

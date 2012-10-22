@@ -24,7 +24,7 @@ OBJDIR   = obj
 SRCDIR   = src
 
 # compiler and additional flags
-COMPILER = g++-mp-4.3
+COMPILER = g++ #-mp-4.3
 FLAGS    = -Wall -DVERSION=\"${VERSION}\" ${INCS} ${LIBS}
-RFLAGS   = ${FLAGS} -O3 -std=c++0x
+RFLAGS   = ${FLAGS} -O3 #-std=c++0x
 DFLAGS   = ${FLAGS} -g

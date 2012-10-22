@@ -20,50 +20,50 @@
 #include <string>
 #include <map>
 #include <utility>
-#include <tuple>
+//#include <tuple>
 #include <vector>
 #include <iterator>
-#include <kdtree++/kdtree.hpp>
+//#include <kdtree++/kdtree.hpp>
 //#include <nanoflann.hpp>
 #include <cstdio>
 
 using std::vector;
 
 
-#define min(A,B) ((A)<(B) ? (A) : (B)) 
-#define max(A,B) ((A)>(B) ? (A) : (B)) 
-struct kdtreeNode
-{
-  typedef double value_type;
+// #define min(A,B) ((A)<(B) ? (A) : (B)) 
+// #define max(A,B) ((A)>(B) ? (A) : (B)) 
+// struct kdtreeNode
+// {
+//   typedef double value_type;
   
-  double xyz[3];
-  size_t index;
+//   double xyz[3];
+//   size_t index;
   
-  value_type operator[](size_t n) const
-  {
-    return xyz[n];
-  }
+//   value_type operator[](size_t n) const
+//   {
+//     return xyz[n];
+//   }
   
-  double distance( const kdtreeNode &node)
-  {
-    double x = xyz[0] - node.xyz[0];
-    double y = xyz[1] - node.xyz[1];
-    double z = xyz[2] - node.xyz[2];
+//   double distance( const kdtreeNode &node)
+//   {
+//     double x = xyz[0] - node.xyz[0];
+//     double y = xyz[1] - node.xyz[1];
+//     double z = xyz[2] - node.xyz[2];
     
-    // this is not correct   return sqrt( x*x+y*y+z*z);
+//     // this is not correct   return sqrt( x*x+y*y+z*z);
     
-    // this is what kdtree checks with find_within_range()
-    // the "manhattan distance" from the search point.
-    // effectively, distance is the maximum distance in any one dimension.
-    return max(fabs(x),max(fabs(y),fabs(z)));
+//     // this is what kdtree checks with find_within_range()
+//     // the "manhattan distance" from the search point.
+//     // effectively, distance is the maximum distance in any one dimension.
+//     return max(fabs(x),max(fabs(y),fabs(z)));
     
-  }
-};
+//   }
+// };
 
-typedef KDTree::KDTree<3,kdtreeNode> treeType;
+// typedef KDTree::KDTree<3,kdtreeNode> treeType;
 
 // get the indices of the nearest neighbors
-void get_nn_indices(const treeType& tree, double limit, int target, int skip, std::map<std::pair<int,int>,int>& hits);
+//void get_nn_indices(const treeType& tree, double limit, int target, int skip, std::map<std::pair<int,int>,int>& hits);
 
 void read_points_file(char* points_file, float*& allpoints, uint8_t*& allcolors, int*& allids, int& num_points);
 
@@ -924,151 +924,151 @@ int dump_ply(const char* filename, const char* points_file, const char* reconstr
 
 int dump_icp(const char* filename) {
 
-  //typedef KDTreeEigenMatrixAdaptor< Eigen::Matrix<num_t,Dynamic,Dynamic> >  my_kd_tree_t;
+  // //typedef KDTreeEigenMatrixAdaptor< Eigen::Matrix<num_t,Dynamic,Dynamic> >  my_kd_tree_t;
 
-  treeType tree;
+  // treeType tree;
 
-  const int kdtree_build_skip = 1;
-  const int kdtree_build_offset = 0;
+  // const int kdtree_build_skip = 1;
+  // const int kdtree_build_offset = 0;
 
-  if (filename == 0)
-    return -1;
-  std::cout<<"Dumping icp file to " << std::string(filename)<<std::endl;
-  std::cout<<"Building kdtree"<<std::endl;
-  FILE* f = fopen(filename,"w");
-  if (!f) {
-    fprintf(stderr, "Cannot read %s\n",filename);
-    return -1;
-  } 
+  // if (filename == 0)
+  //   return -1;
+  // std::cout<<"Dumping icp file to " << std::string(filename)<<std::endl;
+  // std::cout<<"Building kdtree"<<std::endl;
+  // FILE* f = fopen(filename,"w");
+  // if (!f) {
+  //   fprintf(stderr, "Cannot read %s\n",filename);
+  //   return -1;
+  // } 
   
-  int count = 0;
-  for (int i = 0; i < g_cloudcount; ++i)
-    if (g_clouds[i].enabled)
-      count+=g_clouds[i].pointcount;
+  // int count = 0;
+  // for (int i = 0; i < g_cloudcount; ++i)
+  //   if (g_clouds[i].enabled)
+  //     count+=g_clouds[i].pointcount;
 
-  std::vector<int> valid_inds;
+  // std::vector<int> valid_inds;
 
-  for (int i = 0; i < g_cloudcount; ++i)
-    if (g_clouds[i].enabled) {
-      valid_inds.push_back(i);
-    }
-
-
-  const double CUBE_SIZE = .01;
-  std::map<std::tuple<int,int,int>,int> occupied_counts;
-  std::map<std::tuple<int,int,int>,int> sum_counts;
-  std::map<std::tuple<int,int,int>,std::map<int,bool> > occupied_ids;
-
-  for (int iii = 0; iii < valid_inds.size(); ++iii) {
-    int i = valid_inds[iii];
-    std::cout<<","<<std::flush;
-    Eigen::Matrix4f T;
-    for (int q = 0; q < 16; ++q)
-      T(q) = (g_clouds[i].mat[q]);
+  // for (int i = 0; i < g_cloudcount; ++i)
+  //   if (g_clouds[i].enabled) {
+  //     valid_inds.push_back(i);
+  //   }
 
 
-    Eigen::Matrix<float,4,Eigen::Dynamic> allx(4,g_clouds[i].pointcount);
-    for (int j = kdtree_build_offset; j < g_clouds[i].pointcount; j++) {
-      for (int q = 0; q < 3; ++q)
-        allx(q,j) = g_clouds[i].vertices[3*j+q];
-      allx(3,j) = 1;
-    }
-    allx = T*allx;
+  // const double CUBE_SIZE = .01;
+  // std::map<std::tuple<int,int,int>,int> occupied_counts;
+  // std::map<std::tuple<int,int,int>,int> sum_counts;
+  // std::map<std::tuple<int,int,int>,std::map<int,bool> > occupied_ids;
 
-    for (int j = kdtree_build_offset; j < g_clouds[i].pointcount; j+=kdtree_build_skip) {
-      //Eigen::Vector4f x;
-      //x(3) = 1;
-      //for (int q = 0; q < 3; ++q)
-      //  x(q) = g_clouds[i].vertices[3*j+q];
-      //x = T*x;    
-      int a = round(allx(0,j)/CUBE_SIZE);
-      int b = round(allx(1,j)/CUBE_SIZE);
-      int c = round(allx(2,j)/CUBE_SIZE);
-      occupied_counts[std::tuple<int,int,int>(a,b,c)]++;
-      sum_counts[std::tuple<int,int,int>(a,b,c)]++;
-      occupied_ids[std::tuple<int,int,int>(a,b,c)][i] = true;
+  // for (int iii = 0; iii < valid_inds.size(); ++iii) {
+  //   int i = valid_inds[iii];
+  //   std::cout<<","<<std::flush;
+  //   Eigen::Matrix4f T;
+  //   for (int q = 0; q < 16; ++q)
+  //     T(q) = (g_clouds[i].mat[q]);
 
-      // generate points from current measurement to camera center as free space
-      Eigen::Vector3f center;
-      Eigen::Vector3f x;
-      for (int q = 0; q < 3; ++q) {
-        center(q) = T(q, 3);
-        x(q) = allx(q, j);
-      }
 
-      Eigen::Vector3f n = center - x;
-      n.normalize();
-      const double PAD = .03;
-      x = x - PAD*n;
+  //   Eigen::Matrix<float,4,Eigen::Dynamic> allx(4,g_clouds[i].pointcount);
+  //   for (int j = kdtree_build_offset; j < g_clouds[i].pointcount; j++) {
+  //     for (int q = 0; q < 3; ++q)
+  //       allx(q,j) = g_clouds[i].vertices[3*j+q];
+  //     allx(3,j) = 1;
+  //   }
+  //   allx = T*allx;
 
-      for (double alpha = 0; alpha<=1; alpha+=.1) {
-        Eigen::Vector3f x2 = x-n*alpha;
-        sum_counts[std::tuple<int,int,int>(round(x2(0)/CUBE_SIZE),round(x2(1)/CUBE_SIZE),round(x2(2)/CUBE_SIZE))]++;
-      }
+  //   for (int j = kdtree_build_offset; j < g_clouds[i].pointcount; j+=kdtree_build_skip) {
+  //     //Eigen::Vector4f x;
+  //     //x(3) = 1;
+  //     //for (int q = 0; q < 3; ++q)
+  //     //  x(q) = g_clouds[i].vertices[3*j+q];
+  //     //x = T*x;    
+  //     int a = round(allx(0,j)/CUBE_SIZE);
+  //     int b = round(allx(1,j)/CUBE_SIZE);
+  //     int c = round(allx(2,j)/CUBE_SIZE);
+  //     occupied_counts[std::tuple<int,int,int>(a,b,c)]++;
+  //     sum_counts[std::tuple<int,int,int>(a,b,c)]++;
+  //     occupied_ids[std::tuple<int,int,int>(a,b,c)][i] = true;
+
+  //     // generate points from current measurement to camera center as free space
+  //     Eigen::Vector3f center;
+  //     Eigen::Vector3f x;
+  //     for (int q = 0; q < 3; ++q) {
+  //       center(q) = T(q, 3);
+  //       x(q) = allx(q, j);
+  //     }
+
+  //     Eigen::Vector3f n = center - x;
+  //     n.normalize();
+  //     const double PAD = .03;
+  //     x = x - PAD*n;
+
+  //     for (double alpha = 0; alpha<=1; alpha+=.1) {
+  //       Eigen::Vector3f x2 = x-n*alpha;
+  //       sum_counts[std::tuple<int,int,int>(round(x2(0)/CUBE_SIZE),round(x2(1)/CUBE_SIZE),round(x2(2)/CUBE_SIZE))]++;
+  //     }
      
-      kdtreeNode node;
-      node.xyz[0] = allx(0,j);//x(0);
-      node.xyz[1] = allx(1,j);//x(1);
-      node.xyz[2] = allx(2,j);//x(2);
-      node.index = i;
-      //tree.insert(node);
-    }
-  }
+  //     kdtreeNode node;
+  //     node.xyz[0] = allx(0,j);//x(0);
+  //     node.xyz[1] = allx(1,j);//x(1);
+  //     node.xyz[2] = allx(2,j);//x(2);
+  //     node.index = i;
+  //     //tree.insert(node);
+  //   }
+  // }
   
-  std::map<std::tuple<int,int,int>,double> occupied_prob;
+  // std::map<std::tuple<int,int,int>,double> occupied_prob;
 
-  FILE* fid = fopen("/Users/tomasz/Desktop/vols.txt","w");
+  // FILE* fid = fopen("/Users/tomasz/Desktop/vols.txt","w");
 
-  for (std::map<std::tuple<int,int,int>,int>::const_iterator i = occupied_counts.begin(); i!=occupied_counts.end(); ++i) {
+  // for (std::map<std::tuple<int,int,int>,int>::const_iterator i = occupied_counts.begin(); i!=occupied_counts.end(); ++i) {
 
-    double pocc = (double)i->second / double(sum_counts[i->first]+.000001);
-    occupied_prob[i->first] = pocc;
+  //   double pocc = (double)i->second / double(sum_counts[i->first]+.000001);
+  //   occupied_prob[i->first] = pocc;
     
-    fprintf(fid,"%f %f %f %f\n",
-            CUBE_SIZE*std::get<0>(i->first),
-            CUBE_SIZE*std::get<1>(i->first),
-            CUBE_SIZE*std::get<2>(i->first),
-            pocc);
+  //   fprintf(fid,"%f %f %f %f\n",
+  //           CUBE_SIZE*std::get<0>(i->first),
+  //           CUBE_SIZE*std::get<1>(i->first),
+  //           CUBE_SIZE*std::get<2>(i->first),
+  //           pocc);
     
-  }
-
-  fclose(fid);
-  
-  std::cout<<"GOT HERE"<<std::flush<<std::endl;
-  std::cout<<"volume size is " <<occupied_counts.size()<<std::endl;
-  std::cout<<"ids size is " <<occupied_ids.size()<<std::endl;
-  std::cout<<"sum counts size is " <<sum_counts.size()<<std::endl;
-  std::cout<<"Optimizing KDtree"<<std::endl;
-
-  exit(1);
-  tree.optimize();
-  const int skip = 100;
-
-  // const double limit_close = .02;
-  // std::cout<<"BALL RADIUS CLOSE = "<<limit_close<<std::endl;
-  // std::map<std::pair<int,int>,int> hits_close;
-  // for (int i = 0; i < valid_inds.size(); ++i) {
-  //   int target = valid_inds[i];
-  //   get_nn_indices(tree, limit_close, target, skip, hits_close);
-  //   std::cout<<"."<<std::flush;
   // }
 
-  const double limit_far = .1;
-  std::cout<<"BALL RADIUS FAR = "<<limit_far<<std::endl;
-  std::map<std::pair<int,int>,int> hits_far;
-  for (int i = 0; i < valid_inds.size(); ++i) {
-    int target = valid_inds[i];
-    get_nn_indices(tree, limit_far, target, skip, hits_far);
-    std::cout<<"."<<std::flush;
-  }
+  // fclose(fid);
   
-  for (std::map<std::pair<int,int>,int>::const_iterator i = hits_far.begin(); i!=hits_far.end(); i++) {
-    //int val_close = hits_close[i->first];    
-    fprintf(f,"%d %d %d\n",i->first.first,i->first.second,i->second);//,val_close);
-    //std::cout<< i->first.first << " " << i->first.second << " " << i->second<<std::endl;
-  }
+  // std::cout<<"GOT HERE"<<std::flush<<std::endl;
+  // std::cout<<"volume size is " <<occupied_counts.size()<<std::endl;
+  // std::cout<<"ids size is " <<occupied_ids.size()<<std::endl;
+  // std::cout<<"sum counts size is " <<sum_counts.size()<<std::endl;
+  // std::cout<<"Optimizing KDtree"<<std::endl;
 
-  fclose(f);
+  // exit(1);
+  // tree.optimize();
+  // const int skip = 100;
+
+  // // const double limit_close = .02;
+  // // std::cout<<"BALL RADIUS CLOSE = "<<limit_close<<std::endl;
+  // // std::map<std::pair<int,int>,int> hits_close;
+  // // for (int i = 0; i < valid_inds.size(); ++i) {
+  // //   int target = valid_inds[i];
+  // //   get_nn_indices(tree, limit_close, target, skip, hits_close);
+  // //   std::cout<<"."<<std::flush;
+  // // }
+
+  // const double limit_far = .1;
+  // std::cout<<"BALL RADIUS FAR = "<<limit_far<<std::endl;
+  // std::map<std::pair<int,int>,int> hits_far;
+  // for (int i = 0; i < valid_inds.size(); ++i) {
+  //   int target = valid_inds[i];
+  //   get_nn_indices(tree, limit_far, target, skip, hits_far);
+  //   std::cout<<"."<<std::flush;
+  // }
+  
+  // for (std::map<std::pair<int,int>,int>::const_iterator i = hits_far.begin(); i!=hits_far.end(); i++) {
+  //   //int val_close = hits_close[i->first];    
+  //   fprintf(f,"%d %d %d\n",i->first.first,i->first.second,i->second);//,val_close);
+  //   //std::cout<< i->first.first << " " << i->first.second << " " << i->second<<std::endl;
+  // }
+
+  // fclose(f);
   return 1;
 }
 
@@ -1219,35 +1219,35 @@ void write_point_chunk(FILE* f, double* point1, double* point2, int NCUT, uint8_
 
 }
 
-void get_nn_indices(const treeType& tree, double limit,  int target, int skip, std::map<std::pair<int,int>,int>& hits) {
-  Eigen::Matrix4f T;
-  for (int q = 0; q < 16; ++q)
-    T(q) = (g_clouds[target].mat[q]);
+// void get_nn_indices(const treeType& tree, double limit,  int target, int skip, std::map<std::pair<int,int>,int>& hits) {
+//   Eigen::Matrix4f T;
+//   for (int q = 0; q < 16; ++q)
+//     T(q) = (g_clouds[target].mat[q]);
 
-  for (int q = 0; q < g_clouds[target].pointcount; q+=skip) {
-    Eigen::Vector4f x;
-    x(3) = 1;
-    for (int z = 0; z < 3; ++z)
-      x(z) = g_clouds[target].vertices[3*q+z];
-    x = T*x;    
-    kdtreeNode query;
-    query.xyz[0] = x(0);
-    query.xyz[1] = x(1);
-    query.xyz[2] = x(2);
-    vector<kdtreeNode> howClose;
-    std::map<int,int> gotten;
-    tree.find_within_range(query,limit,std::back_insert_iterator<vector<kdtreeNode> >(howClose));
-    for (int i = 0; i < howClose.size(); ++i) {
-      if (gotten[howClose[i].index] > 0)
-        continue;
+//   for (int q = 0; q < g_clouds[target].pointcount; q+=skip) {
+//     Eigen::Vector4f x;
+//     x(3) = 1;
+//     for (int z = 0; z < 3; ++z)
+//       x(z) = g_clouds[target].vertices[3*q+z];
+//     x = T*x;    
+//     kdtreeNode query;
+//     query.xyz[0] = x(0);
+//     query.xyz[1] = x(1);
+//     query.xyz[2] = x(2);
+//     vector<kdtreeNode> howClose;
+//     std::map<int,int> gotten;
+//     tree.find_within_range(query,limit,std::back_insert_iterator<vector<kdtreeNode> >(howClose));
+//     for (int i = 0; i < howClose.size(); ++i) {
+//       if (gotten[howClose[i].index] > 0)
+//         continue;
       
-      hits[std::pair<int,int>(target,howClose[i].index)]++;
-      gotten[howClose[i].index]++;
-    }
+//       hits[std::pair<int,int>(target,howClose[i].index)]++;
+//       gotten[howClose[i].index]++;
+//     }
 
-  }
+//   }
 
-}
+// }
 
 void read_points_file(char* points_file, float*& allpoints, uint8_t*& allcolors, int*& allids, int& num_points)
 {

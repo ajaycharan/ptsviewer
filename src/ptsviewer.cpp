@@ -1275,7 +1275,7 @@ void read_points_file(char* points_file, float*& allpoints, uint8_t*& allcolors,
 
 void read_points_file2(char* points_file, float*& allpoints, uint8_t*& allcolors, int*& allids, int& num_points)
 {
-  const int num_scans = 14857;//20412;
+  const int num_scans = 20412;//14857;//20412;
   num_points = num_scans*4000;
   /* First we read all points */
   FILE * f = fopen( points_file, "r" );

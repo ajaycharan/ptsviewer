@@ -165,6 +165,7 @@ void drawScene() {
         /* Set cloudcolor to opposite of background color. */
         float rgb[3];
         glGetFloatv( GL_COLOR_CLEAR_VALUE, rgb );
+        //glColor3f( 0.0f, 0.0f, 0.0f );
         if ( *rgb < 0.5 ) {
           glColor3f( 1.0f, 1.0f, 1.0f );
         } else {
@@ -1278,7 +1279,7 @@ void read_points_file2(char* points_file, float*& allpoints, uint8_t*& allcolors
 
   //const int num_scans = 14857;//20412;
   //const int num_scans = 32294;
-  const int num_scans = 20412;//14857;//20412;
+  const int num_scans = 20412;//1021;//20412;//14857;//20412;
 
   num_points = num_scans*4000;
   /* First we read all points */

@@ -1,3 +1,4 @@
+//const int num_scans = 19579;20412;//1021;//20412;//14857;//20412;
 /*******************************************************************************
  *
  *       Filename:  ptsviewer.c
@@ -20,6 +21,7 @@
 #include <string>
 #include <map>
 #include <utility>
+
 //#include <tuple>
 #include <vector>
 #include <iterator>
@@ -701,7 +703,7 @@ int main( int argc, char ** argv ) {
 
     double* mat;
     double* invmat;
-    std::cout<<"Recon index is " <<index<<std::endl;
+    //std::cout<<"Recon index is " <<index<<std::endl;
     mat = (double*)malloc(16*sizeof(double));
     invmat = (double*)malloc(16*sizeof(double));
 
@@ -710,7 +712,7 @@ int main( int argc, char ** argv ) {
     Eigen::Matrix4d emat(mat);
     Eigen::Matrix4d ematinv = emat.inverse();
 
-    std::cout<<"mat is " << emat<<std::endl;
+    //std::cout<<"mat is " << emat<<std::endl;
     int counter = 0;
     for (int a = 0; a < 4; ++a)
       for (int b = 0; b < 4; ++b)
@@ -813,6 +815,7 @@ void printHelp() {
 }
 
 void update_movie_index(int value) {
+
 
   // first find first index
   int i;
@@ -1279,9 +1282,9 @@ void read_points_file2(char* points_file, float*& allpoints, uint8_t*& allcolors
 
   //const int num_scans = 14857;//20412;
   //const int num_scans = 32294;
-  const int num_scans = 20412;//1021;//20412;//14857;//20412;
 
-  num_points = num_scans*4000;
+  int num_scans = 0;
+  //num_points = num_scans*4000;
   /* First we read all points */
   FILE * f = fopen( points_file, "r" );
   if (!f) {
@@ -1289,29 +1292,44 @@ void read_points_file2(char* points_file, float*& allpoints, uint8_t*& allcolors
     exit(EXIT_FAILURE);
   }
 
-  fprintf(stdout, " Num points is  %d\n",num_points);
+  //fprintf(stdout, " Num points is  %d\n",num_points);
   
-  allpoints = (float*) malloc(sizeof(float)*num_points*3);
-  allcolors = (uint8_t*) malloc(sizeof(uint8_t)*num_points*3);
-  allids = (int*) malloc(sizeof(int)*num_points);
+  allpoints = 0;
+  allcolors = 0;
+  allids = 0;
   
   int c = 0;
+
+  // we just read the normals but don't do anything with them
   float normals[3*4000];
-  for (int i = 0; i < num_scans; ++i) {
+
+  std::cout<<"Reading 3D points/colors from "<<points_file<<" ";
+  while (!feof(f)) {
+
+    num_scans++;
+    num_points = num_scans*4000;
+
+    allpoints = (float*) realloc(allpoints,sizeof(float)*num_points*3);
+    allcolors = (uint8_t*) realloc(allcolors,sizeof(uint8_t)*num_points*3);
+    allids = (int*) realloc(allids,sizeof(int)*num_points);
+
+    if (!allpoints || !allcolors || !allids) {
+      std::cout<<"Memory allocation error"<<std::endl;
+    }
+
     int index;
     int num;
     fread(&index,sizeof(int),1,f);
     fread(&num,sizeof(int),1,f);
-    std::cout<<"index is " <<index<<std::endl;
-    //std::cout<<"."<<std::flush;
-    fread(allpoints+(4000*i*3),sizeof(float),3*4000,f);
+    fread(allpoints+(4000*(num_scans-1)*3),sizeof(float),3*4000,f);
     fread(normals,sizeof(float),3*4000,f);
-    fread(allcolors+(4000*i*3),sizeof(uint8_t),3*4000,f);
+    fread(allcolors+(4000*(num_scans-1)*3),sizeof(uint8_t),3*4000,f);
     for (int q = 0; q < 4000; ++q) {
       allids[c] = index;
       c++;
     }
   }
+  std::cout<<" done reading "<<num_scans<<" scans"<<std::endl;
   
   // char filename[1000];
   // num_points = 0;

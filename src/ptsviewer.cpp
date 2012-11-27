@@ -641,9 +641,12 @@ int main( int argc, char ** argv ) {
   memset(counts,0,sizeof(int)*maxid);
   memset(startid,0,sizeof(int)*maxid);
   for (i = 0; i < num_points; ++i)
+  {
+    //std::cout<<"id is " <<allids[i]-1<<std::endl;
     counts[allids[i]-1]++;
+  }
 
-  for (i = num_points; i >=0 ; i--)
+  for (i = num_points-1; i >=0 ; i--)
     startid[allids[i]-1] = i;
 
   //for (i = 0; i < maxid; ++i) {
@@ -660,7 +663,7 @@ int main( int argc, char ** argv ) {
 
 
   for (i = 0; i < g_cloudcount; ++i) {
-    //fprintf(stdout,"Processing cloud %d\n",i);
+    fprintf(stdout,"Processing cloud %d\n",i);
     memset( g_clouds + i, 0, sizeof( cloud_t ) );
     
     g_clouds[i].name = (char*)malloc(100*sizeof(char));
